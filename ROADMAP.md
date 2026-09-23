@@ -3,15 +3,15 @@
 ## Current phase
 
 ```text
-Current: Phase 5 — Pairing/security (confirmed working end to end on real hardware, over BOTH
-home Wi-Fi and the phone's own Wi-Fi hotspot: TLS with trust-on-first-use certificate pinning,
-6-digit pairing code with HMAC challenge-response, persistent trusted-device store on both sides,
-and per-connection authentication gating notification delivery. See DECISIONS.md ADR-009/ADR-010
-and its "Network path findings" section -- an initial home Wi-Fi failure looked like router AP
-isolation but did not reproduce on retest, and is now attributed to transient state right after
-switching networks, not a router limitation. Phases 1-4 all confirmed working on real hardware.
-This is the phase ROADMAP.md says must work before the system can be considered production-ready
--- it now does, on the network the user actually intends to use day to day.)
+Current: Phase 6 — Settings (confirmed working: a real Settings tab replaces dev-panel-only
+pairing, with persisted (JSON in %LOCALAPPDATA%) monitor selection (real multi-monitor
+enumeration via EnumDisplayMonitors, not just primary), corner placement (all 4 UI_UX.md options),
+bubble duration, max visible bubbles (oldest evicted when over cap), animation on/off, and start
+-with-Windows (HKCU Run key). Settings changes apply live via OverlayWindow.ApplySettings() without
+restarting. A "Developer" tab keeps the old synthetic-test tooling. Phase 5 pairing/security
+confirmed working end to end on real hardware over BOTH home Wi-Fi and the phone's Wi-Fi hotspot
+-- see DECISIONS.md ADR-009/ADR-010 and its "Network path findings" section for the AP-isolation
+false alarm. Phases 1-5 all confirmed working on real hardware.)
 ```
 
 Update this line as work progresses. Any session (you or Claude Code) should check here first

@@ -3,9 +3,11 @@ using System.Net;
 using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Threading;
+using NotificationBridge.Windows.Display;
 using NotificationBridge.Windows.Notifications;
 using NotificationBridge.Windows.Protocol;
 using NotificationBridge.Windows.Security;
+using NotificationBridge.Windows.Settings;
 using NotificationBridge.Windows.Transport;
 using NotificationBridge.Windows.UI;
 
@@ -14,17 +16,23 @@ namespace NotificationBridge.Windows;
 public partial class MainWindow : Window
 {
     private const int Port = 7787;
+    private readonly AppSettings _settings;
     private readonly PairingSession _pairingSession = new();
     private readonly TrustedDeviceStore _trustedDevices = new();
     private readonly LocalWebSocketReceiver _receiver;
-    private readonly NotificationManager _notificationManager = new();
-    private readonly OverlayWindow _overlay = new();
+    private readonly NotificationManager _notificationManager;
+    private readonly OverlayWindow _overlay;
     private readonly DispatcherTimer _pairingStatusTimer;
 
     public MainWindow()
     {
         InitializeComponent();
 
+        _settings = SettingsStore.Load();
+        _settings.StartWithWindows = StartupManager.IsEnabled();
+
+        _notificationManager = new NotificationManager(_settings);
+        _overlay = new OverlayWindow(_settings);
         _receiver = new LocalWebSocketReceiver(Port, CertificateStore.LoadOrCreate(), _pairingSession, _trustedDevices);
 
         _notificationManager.NotificationAdded += n => _overlay.Add(n);
@@ -39,8 +47,9 @@ public partial class MainWindow : Window
         _pairingStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _pairingStatusTimer.Tick += (_, _) => RefreshPairingStatus();
 
+        PopulateSettingsControls();
         RefreshTrustedDevicesList();
-        StatusText.Text = $"Listening on wss://127.0.0.1:{Port}/ws/ (no client connected)";
+        UpdateStatusText(connected: false);
         Closing += (_, _) =>
         {
             _receiver.Stop();
@@ -48,14 +57,63 @@ public partial class MainWindow : Window
         };
     }
 
+    private void PopulateSettingsControls()
+    {
+        var monitors = DisplayManager.GetAllMonitors();
+        MonitorCombo.ItemsSource = monitors;
+        MonitorCombo.SelectedIndex = _settings.MonitorIndex >= 0 && _settings.MonitorIndex < monitors.Count
+            ? _settings.MonitorIndex
+            : 0;
+
+        CornerCombo.SelectedIndex = (int)_settings.Corner;
+
+        DurationSlider.Value = _settings.BubbleDurationSeconds;
+        DurationValueText.Text = $"{_settings.BubbleDurationSeconds}s";
+
+        MaxBubblesSlider.Value = _settings.MaxVisibleBubbles;
+        MaxBubblesValueText.Text = _settings.MaxVisibleBubbles.ToString();
+
+        AnimationCheckBox.IsChecked = _settings.AnimationEnabled;
+        StartupCheckBox.IsChecked = _settings.StartWithWindows;
+    }
+
+    private void ApplySettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.MonitorIndex = MonitorCombo.SelectedIndex >= 0 ? MonitorCombo.SelectedIndex : 0;
+        _settings.Corner = (BubbleCorner)CornerCombo.SelectedIndex;
+        _settings.BubbleDurationSeconds = (int)DurationSlider.Value;
+        _settings.MaxVisibleBubbles = (int)MaxBubblesSlider.Value;
+        _settings.AnimationEnabled = AnimationCheckBox.IsChecked == true;
+        _settings.StartWithWindows = StartupCheckBox.IsChecked == true;
+
+        SettingsStore.Save(_settings);
+        StartupManager.SetEnabled(_settings.StartWithWindows);
+        _overlay.ApplySettings();
+    }
+
+    private void DurationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (DurationValueText is not null)
+            DurationValueText.Text = $"{(int)e.NewValue}s";
+    }
+
+    private void MaxBubblesSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (MaxBubblesValueText is not null)
+            MaxBubblesValueText.Text = ((int)e.NewValue).ToString();
+    }
+
     private void OnClientConnectionChanged(bool connected)
     {
-        Dispatcher.Invoke(() =>
-        {
-            StatusText.Text = connected
-                ? $"Listening on wss://127.0.0.1:{Port}/ws/ (client connected)"
-                : $"Listening on wss://127.0.0.1:{Port}/ws/ (no client connected)";
-        });
+        Dispatcher.Invoke(() => UpdateStatusText(connected));
+    }
+
+    private void UpdateStatusText(bool connected)
+    {
+        var ip = GetLocalIPv4() ?? "0.0.0.0";
+        StatusText.Text = connected
+            ? $"Listening on wss://{ip}:{Port}/ws/ (client connected)"
+            : $"Listening on wss://{ip}:{Port}/ws/ (no client connected)";
     }
 
     private void OnMessageReceived(string rawJson)

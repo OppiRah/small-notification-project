@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Interop;
 using NotificationBridge.Windows.Display;
 using NotificationBridge.Windows.Notifications;
+using NotificationBridge.Windows.Settings;
 
 namespace NotificationBridge.Windows.UI;
 
@@ -33,11 +34,13 @@ public partial class OverlayWindow : Window
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
+    private readonly AppSettings _settings;
     private readonly Dictionary<string, BubbleControl> _bubbles = new();
 
-    public OverlayWindow()
+    public OverlayWindow(AppSettings settings)
     {
         InitializeComponent();
+        _settings = settings;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -48,17 +51,35 @@ public partial class OverlayWindow : Window
         var exStyle = GetWindowLong(hwnd, GwlExStyle);
         SetWindowLong(hwnd, GwlExStyle, exStyle | WsExNoActivate | WsExToolWindow | WsExTransparent | WsExLayered);
 
-        var workingArea = DisplayManager.GetTargetWorkingArea();
-        var x = workingArea.Right - OverlayWidthPixels;
+        ApplySettings();
+    }
+
+    public void ApplySettings()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero)
+            return;
+
+        var workingArea = DisplayManager.GetWorkingArea(_settings.MonitorIndex);
+        var isLeft = _settings.Corner is BubbleCorner.TopLeft or BubbleCorner.BottomLeft;
+        var x = isLeft ? workingArea.Left : workingArea.Right - OverlayWidthPixels;
         var y = workingArea.Top;
         SetWindowPos(hwnd, HwndTopmost, x, y, OverlayWidthPixels, workingArea.Height, SwpNoActivate | SwpShowWindow);
+
+        var isTop = _settings.Corner is BubbleCorner.TopLeft or BubbleCorner.TopRight;
+        BubbleStack.VerticalAlignment = isTop ? VerticalAlignment.Top : VerticalAlignment.Bottom;
     }
 
     public void Add(VisibleNotification notification)
     {
-        var bubble = new BubbleControl(notification.Id, notification.AppName, notification.Title, notification.Body);
+        var bubble = new BubbleControl(notification.Id, notification.AppName, notification.Title, notification.Body, _settings.AnimationEnabled);
         _bubbles[notification.Id] = bubble;
-        BubbleStack.Children.Insert(0, bubble);
+
+        var isTop = _settings.Corner is BubbleCorner.TopLeft or BubbleCorner.TopRight;
+        if (isTop)
+            BubbleStack.Children.Insert(0, bubble);
+        else
+            BubbleStack.Children.Add(bubble);
     }
 
     public void Remove(string id)
@@ -67,6 +88,6 @@ public partial class OverlayWindow : Window
             return;
 
         _bubbles.Remove(id);
-        bubble.FadeOutAndRemove(() => BubbleStack.Children.Remove(bubble));
+        bubble.FadeOutAndRemove(_settings.AnimationEnabled, () => BubbleStack.Children.Remove(bubble));
     }
 }

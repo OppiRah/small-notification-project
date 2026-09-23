@@ -1,5 +1,6 @@
 using System.Windows.Threading;
 using NotificationBridge.Windows.Protocol;
+using NotificationBridge.Windows.Settings;
 
 namespace NotificationBridge.Windows.Notifications;
 
@@ -15,9 +16,14 @@ namespace NotificationBridge.Windows.Notifications;
 // inside Dispatcher.Invoke), so it does not do its own locking.
 public sealed class NotificationManager
 {
-    private static readonly TimeSpan DisplayDuration = TimeSpan.FromSeconds(6);
-
+    private readonly AppSettings _settings;
     private readonly Dictionary<string, DispatcherTimer> _timers = new();
+    private readonly Queue<string> _arrivalOrder = new();
+
+    public NotificationManager(AppSettings settings)
+    {
+        _settings = settings;
+    }
 
     public event Action<VisibleNotification>? NotificationAdded;
     public event Action<string>? NotificationRemoved;
@@ -26,6 +32,9 @@ public sealed class NotificationManager
     {
         if (message.MessageType != "NOTIFICATION" || message.Notification is not { } payload)
             return;
+
+        while (_timers.Count >= _settings.MaxVisibleBubbles && _arrivalOrder.Count > 0)
+            Remove(_arrivalOrder.Dequeue());
 
         var entry = new VisibleNotification
         {
@@ -36,11 +45,12 @@ public sealed class NotificationManager
             Body = payload.Body,
         };
 
-        var timer = new DispatcherTimer { Interval = DisplayDuration };
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_settings.BubbleDurationSeconds) };
         timer.Tick += (_, _) => Remove(message.MessageId);
         timer.Start();
 
         _timers[message.MessageId] = timer;
+        _arrivalOrder.Enqueue(message.MessageId);
         NotificationAdded?.Invoke(entry);
     }
 

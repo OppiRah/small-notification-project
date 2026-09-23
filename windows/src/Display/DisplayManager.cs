@@ -8,14 +8,16 @@ public readonly record struct MonitorArea(int Left, int Top, int Right, int Bott
     public int Height => Bottom - Top;
 }
 
-// Monitor selection UI is Phase 6; for now this always targets the primary monitor, but returns
-// real working-area bounds via Win32's GetMonitorInfo (per ARCHITECTURE.md 4.4) rather than
-// hardcoding dimensions, so a monitor placed left of/above the primary won't break placement math
-// later, per UI_UX.md section 2.
+public sealed record MonitorDescriptor(int Index, MonitorArea WorkingArea, bool IsPrimary)
+{
+    public override string ToString() => IsPrimary ? $"Monitor {Index + 1} (Primary)" : $"Monitor {Index + 1}";
+}
+
+// Enumerates real monitors via Win32's EnumDisplayMonitors/GetMonitorInfo (per ARCHITECTURE.md
+// 4.4) rather than assuming a single primary display, so Phase 6's monitor picker has real
+// options and placement math never assumes positive coordinates, per UI_UX.md section 2.
 public static class DisplayManager
 {
-    private const uint MonitorDefaultToPrimary = 0x00000001;
-
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect
     {
@@ -23,13 +25,6 @@ public static class DisplayManager
         public int Top;
         public int Right;
         public int Bottom;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Point
-    {
-        public int X;
-        public int Y;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -41,20 +36,52 @@ public static class DisplayManager
         public uint DwFlags;
     }
 
+    private const uint MonitorInfoFPrimary = 0x00000001;
+
+    private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData);
+
     [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromPoint(Point pt, uint dwFlags);
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
 
-    public static MonitorArea GetTargetWorkingArea()
+    public static IReadOnlyList<MonitorDescriptor> GetAllMonitors()
     {
-        var monitor = MonitorFromPoint(new Point { X = 0, Y = 0 }, MonitorDefaultToPrimary);
-        var info = new MonitorInfo { CbSize = Marshal.SizeOf<MonitorInfo>() };
+        var monitors = new List<MonitorDescriptor>();
 
-        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info))
-            return new MonitorArea(0, 0, 1920, 1040);
+        bool Callback(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData)
+        {
+            var info = new MonitorInfo { CbSize = Marshal.SizeOf<MonitorInfo>() };
+            if (GetMonitorInfo(hMonitor, ref info))
+            {
+                var area = new MonitorArea(info.RcWork.Left, info.RcWork.Top, info.RcWork.Right, info.RcWork.Bottom);
+                var isPrimary = (info.DwFlags & MonitorInfoFPrimary) != 0;
+                monitors.Add(new MonitorDescriptor(monitors.Count, area, isPrimary));
+            }
+            return true;
+        }
 
-        return new MonitorArea(info.RcWork.Left, info.RcWork.Top, info.RcWork.Right, info.RcWork.Bottom);
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, Callback, IntPtr.Zero);
+
+        if (monitors.Count == 0)
+            monitors.Add(new MonitorDescriptor(0, new MonitorArea(0, 0, 1920, 1040), true));
+
+        return monitors;
+    }
+
+    public static MonitorArea GetWorkingArea(int monitorIndex)
+    {
+        var monitors = GetAllMonitors();
+        if (monitorIndex >= 0 && monitorIndex < monitors.Count)
+            return monitors[monitorIndex].WorkingArea;
+
+        foreach (var monitor in monitors)
+        {
+            if (monitor.IsPrimary)
+                return monitor.WorkingArea;
+        }
+
+        return monitors[0].WorkingArea;
     }
 }
