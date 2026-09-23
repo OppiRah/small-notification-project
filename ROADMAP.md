@@ -3,14 +3,15 @@
 ## Current phase
 
 ```text
-Current: Phase 5 — Pairing/security (confirmed working end to end on real hardware, over real
-WiFi: TLS with trust-on-first-use certificate pinning, 6-digit pairing code with HMAC
-challenge-response, persistent trusted-device store on both sides, and per-connection
-authentication gating notification delivery. See DECISIONS.md ADR-009/ADR-010 and its "Network
-path findings" section for the AP-isolation discovery and the phone-hotspot workaround. Phases 1-4
-all confirmed working on real hardware. This is the phase ROADMAP.md says must work before the
-system can be considered production-ready -- it now does, over the hotspot path; home-Wi-Fi
-connectivity is blocked by router-side AP isolation, not by anything in this app.)
+Current: Phase 5 — Pairing/security (confirmed working end to end on real hardware, over BOTH
+home Wi-Fi and the phone's own Wi-Fi hotspot: TLS with trust-on-first-use certificate pinning,
+6-digit pairing code with HMAC challenge-response, persistent trusted-device store on both sides,
+and per-connection authentication gating notification delivery. See DECISIONS.md ADR-009/ADR-010
+and its "Network path findings" section -- an initial home Wi-Fi failure looked like router AP
+isolation but did not reproduce on retest, and is now attributed to transient state right after
+switching networks, not a router limitation. Phases 1-4 all confirmed working on real hardware.
+This is the phase ROADMAP.md says must work before the system can be considered production-ready
+-- it now does, on the network the user actually intends to use day to day.)
 ```
 
 Update this line as work progresses. Any session (you or Claude Code) should check here first

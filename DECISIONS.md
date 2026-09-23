@@ -192,24 +192,31 @@ immediately revokes it, since future `AUTHENTICATE` attempts will fail the secre
 Status legend: **Confirmed** (directly tested), **Likely** (strong evidence, not exhaustively
 proven), **Not yet tested**.
 
-- **Confirmed** -- home Wi-Fi (both devices on the same router) failed with `ConnectException` on
-  the Android side and `Destination Host Unreachable` on a raw ping test between devices, even
-  though both devices were on the same subnet and the Windows firewall/app were confirmed correct.
-- **Likely** -- the cause is AP/client isolation on the home router (common default on ISP-provided
-  routers), which blocks direct device-to-device LAN traffic while still allowing internet access.
-  Not exhaustively proven (the router's own settings were not inspected), but consistent with every
-  symptom observed.
+- **Confirmed** -- home Wi-Fi (both devices on the same router, same subnet) **works end to end**:
+  pairing, authentication, and live notification delivery all succeeded, with the Windows app
+  listening on `0.0.0.0:7787` and its firewall rule allowing the Private profile that this network
+  is classified as. No application or router change was needed to make this work.
 - **Confirmed** -- using the Android phone's own Wi-Fi hotspot as the network (PC connects to the
-  phone's hotspot, bypassing the home router entirely) works end to end: pairing, authentication,
-  and live notification delivery all succeeded.
+  phone's hotspot, bypassing the home router entirely) also works end to end: pairing,
+  authentication, and live notification delivery all succeeded.
 - **Confirmed** -- Windows classifies a phone hotspot connection as network category "Public," not
   "Private." The app's firewall rule initially only allowed "Private" and had to be manually
   extended to include "Public" (`Set-NetFirewallRule -Profile Private,Public`) before the hotspot
-  path worked.
-- **Not yet tested** -- USB tethering as a network path (only `adb reverse`-tunneled loopback and
-  Wi-Fi hotspot have been tested).
-- Router configuration (disabling AP isolation) is intentionally not required by this project; the
-  phone hotspot is the supported workaround when the home network isolates devices from each other.
+  path worked. Home Wi-Fi is classified "Private" and worked under the original rule.
+- **Revised, not AP isolation** -- earlier testing on this same home Wi-Fi failed with
+  `ConnectException` on Android and `Destination Host Unreachable` on a raw ping test, which at the
+  time looked like router-side AP/client isolation. Retesting later, after both devices had been
+  reconnected to the network for longer, succeeded with no configuration changes on either device
+  or the router. The most likely explanation is transient network state right after switching
+  Wi-Fi networks (ARP cache / DHCP lease / Windows network-location detection not yet settled),
+  not a persistent router restriction. AP isolation was never actually confirmed by inspecting the
+  router itself, so this project does not conclude the router isolates clients -- if a similar
+  failure recurs, retry after both devices have been connected for at least 30-60 seconds before
+  concluding it's a router limitation.
+- **Not yet tested** -- USB tethering as a network path (only `adb reverse`-tunneled loopback, home
+  Wi-Fi, and phone Wi-Fi hotspot have been tested).
+- Both home Wi-Fi and the phone hotspot are supported, working network paths. The phone hotspot
+  remains useful as a fallback if home Wi-Fi is ever unreachable, but is not required.
 
 ---
 
