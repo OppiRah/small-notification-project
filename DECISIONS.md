@@ -116,6 +116,30 @@ logic, no polling.
 
 ---
 
+## ADR-008 — Per-message bubbles instead of per-conversation update-in-place
+
+### Decision
+
+Every incoming NOTIFICATION message renders as its own independent bubble, keyed by the wire
+envelope's messageId. NOTIFICATION_REMOVED is ignored for display purposes; a bubble only ever
+disappears via its own expiry timer.
+
+### Reason
+
+Android reuses the same notificationId for every new message within one conversation, so
+ARCHITECTURE.md 4.3's original "update to currently visible notification -> update bubble in
+place" default would collapse a fast-moving conversation down to "latest message only" and hide
+everything said in between. The user explicitly wants a running message log instead: each message
+gets its own bubble, stacking newest-on-top, each expiring independently. Ignoring
+NOTIFICATION_REMOVED avoids bubbles vanishing abruptly mid-read just because the phone-side
+conversation was opened/cleared.
+
+### Consequence
+
+This intentionally diverges from ARCHITECTURE.md 4.3's dedup/update model as originally written.
+
+---
+
 ## Unresolved decisions
 
 The implementation team must explicitly decide:

@@ -3,7 +3,16 @@
 ## Current phase
 
 ```text
-Current: Phase 3 — End-to-end transport (confirmed working end to end with real Messenger/TikTok/SMS notifications, full content visible on the Windows dev panel. Added app-agnostic filtering for Android's own CATEGORY_SERVICE and FLAG_GROUP_SUMMARY notifications, which removed Messenger's noisy "Chat heads active" bursts and TikTok's group-summary placeholder. Real message notifications correctly reuse the same notificationId per conversation, confirming update-vs-new identity will work as ARCHITECTURE.md expects. Phases 1 and 2 both confirmed working on real hardware. Next: Phase 4 bubble renderer, starting with the Windows NotificationManager (dedup/update/lifecycle) since it owns this same identity logic.)
+Current: Phase 4 — Bubble renderer (confirmed working on real hardware: transparent, topmost,
+non-activating, click-through overlay in the top-right corner of the primary monitor; fade-in on
+arrival and fade-out on expiry; independent per-bubble 6s timers; verified real stacking with
+back-to-back messages in the same conversation. Deliberate product decision (diverges from
+ARCHITECTURE.md 4.3's original update-in-place default): every incoming message becomes its own
+bubble, keyed by the wire envelope's messageId rather than Android's notificationId, since the
+user wants a running message log rather than "latest message only." NOTIFICATION_REMOVED is
+intentionally ignored for display -- bubbles only ever expire on their own timer. Monitor
+selection still hardcoded to primary (Phase 6 adds picking); icon display deferred to Phase 8 per
+ROADMAP. Phases 1-3 all confirmed working on real hardware.)
 ```
 
 Update this line as work progresses. Any session (you or Claude Code) should check here first

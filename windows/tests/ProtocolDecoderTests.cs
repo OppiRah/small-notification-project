@@ -38,6 +38,46 @@ public class ProtocolDecoderTests
     }
 
     [Fact]
+    public void NotificationRemoved_DecodesSuccessfully()
+    {
+        var json = """
+        {
+          "protocolVersion": 1,
+          "messageType": "NOTIFICATION_REMOVED",
+          "messageId": "test-message-1",
+          "timestamp": "2026-09-23T10:00:00Z",
+          "payload": {
+            "notificationId": "n1"
+          }
+        }
+        """;
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.Equal("n1", result.Message!.RemovedNotificationId);
+    }
+
+    [Fact]
+    public void NotificationRemoved_MissingNotificationId_IsRejected()
+    {
+        var json = """
+        {
+          "protocolVersion": 1,
+          "messageType": "NOTIFICATION_REMOVED",
+          "messageId": "test-message-1",
+          "timestamp": "2026-09-23T10:00:00Z",
+          "payload": {}
+        }
+        """;
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.ValidationFailed, result.Status);
+        Assert.Contains(result.Errors, e => e.Contains("notificationId"));
+    }
+
+    [Fact]
     public void InvalidJson_IsRejectedAsMalformed()
     {
         var result = ProtocolDecoder.Decode("{ not valid json ");

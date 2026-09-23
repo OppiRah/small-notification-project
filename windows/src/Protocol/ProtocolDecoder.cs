@@ -10,7 +10,8 @@ public sealed record DecodedMessage(
     string MessageType,
     string MessageId,
     DateTimeOffset Timestamp,
-    NotificationPayload? Notification
+    NotificationPayload? Notification,
+    string? RemovedNotificationId
 );
 
 public sealed record DecodeResult(DecodeStatus Status, DecodedMessage? Message, IReadOnlyList<string> Errors)
@@ -78,6 +79,7 @@ public static class ProtocolDecoder
             }
 
             NotificationPayload? notification = null;
+            string? removedNotificationId = null;
             if (errors.Count == 0 && messageType == "NOTIFICATION")
             {
                 if (!root.TryGetProperty("payload", out var payloadEl) || payloadEl.ValueKind != JsonValueKind.Object)
@@ -91,11 +93,20 @@ public static class ProtocolDecoder
                     notification = parsedPayload;
                 }
             }
+            else if (errors.Count == 0 && messageType == "NOTIFICATION_REMOVED")
+            {
+                if (!root.TryGetProperty("payload", out var payloadEl) || payloadEl.ValueKind != JsonValueKind.Object ||
+                    string.IsNullOrWhiteSpace(removedNotificationId = GetString(payloadEl, "notificationId")))
+                {
+                    errors.Add("payload.notificationId is required for NOTIFICATION_REMOVED");
+                    removedNotificationId = null;
+                }
+            }
 
             if (errors.Count > 0)
                 return DecodeResult.Fail(DecodeStatus.ValidationFailed, errors.ToArray());
 
-            var message = new DecodedMessage(protocolVersion, messageType, messageId, timestamp, notification);
+            var message = new DecodedMessage(protocolVersion, messageType, messageId, timestamp, notification, removedNotificationId);
             return DecodeResult.Ok(message);
         }
     }
