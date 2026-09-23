@@ -35,6 +35,27 @@ object ProtocolMessages {
         return envelope("NOTIFICATION_REMOVED", payload)
     }
 
+    fun pairRequest(deviceId: String, deviceName: String, proofBase64: String): String {
+        val payload = JSONObject().apply {
+            put("deviceId", deviceId)
+            put("deviceName", deviceName)
+            put("proof", proofBase64)
+        }
+        return envelope("PAIR_REQUEST", payload)
+    }
+
+    fun authenticate(deviceId: String, nonce: String, timestamp: String, proofBase64: String): String {
+        val payload = JSONObject().apply {
+            put("deviceId", deviceId)
+            put("nonce", nonce)
+            put("timestamp", timestamp)
+            put("proof", proofBase64)
+        }
+        return envelope("AUTHENTICATE", payload)
+    }
+
+    fun nowIsoTimestamp(): String = isoTimestamp(System.currentTimeMillis())
+
     private fun envelope(messageType: String, payload: JSONObject): String {
         return JSONObject().apply {
             put("protocolVersion", PROTOCOL_VERSION)

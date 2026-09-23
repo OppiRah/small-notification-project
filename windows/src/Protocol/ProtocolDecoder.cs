@@ -5,13 +5,19 @@ namespace NotificationBridge.Windows.Protocol;
 
 public enum DecodeStatus { Ok, MalformedJson, ValidationFailed }
 
+public sealed record PairRequestPayload(string DeviceId, string? DeviceName, string Proof);
+
+public sealed record AuthenticatePayload(string DeviceId, string Nonce, string Timestamp, string Proof);
+
 public sealed record DecodedMessage(
     int ProtocolVersion,
     string MessageType,
     string MessageId,
     DateTimeOffset Timestamp,
     NotificationPayload? Notification,
-    string? RemovedNotificationId
+    string? RemovedNotificationId,
+    PairRequestPayload? PairRequest,
+    AuthenticatePayload? Authenticate
 );
 
 public sealed record DecodeResult(DecodeStatus Status, DecodedMessage? Message, IReadOnlyList<string> Errors)
@@ -80,6 +86,9 @@ public static class ProtocolDecoder
 
             NotificationPayload? notification = null;
             string? removedNotificationId = null;
+            PairRequestPayload? pairRequest = null;
+            AuthenticatePayload? authenticate = null;
+
             if (errors.Count == 0 && messageType == "NOTIFICATION")
             {
                 if (!root.TryGetProperty("payload", out var payloadEl) || payloadEl.ValueKind != JsonValueKind.Object)
@@ -102,11 +111,57 @@ public static class ProtocolDecoder
                     removedNotificationId = null;
                 }
             }
+            else if (errors.Count == 0 && messageType == "PAIR_REQUEST")
+            {
+                if (!root.TryGetProperty("payload", out var payloadEl) || payloadEl.ValueKind != JsonValueKind.Object)
+                {
+                    errors.Add("Missing payload for PAIR_REQUEST message");
+                }
+                else
+                {
+                    var deviceId = GetString(payloadEl, "deviceId") ?? "";
+                    var proof = GetString(payloadEl, "proof") ?? "";
+                    if (string.IsNullOrWhiteSpace(deviceId))
+                        errors.Add("payload.deviceId is required for PAIR_REQUEST");
+                    if (string.IsNullOrWhiteSpace(proof))
+                        errors.Add("payload.proof is required for PAIR_REQUEST");
+
+                    if (errors.Count == 0)
+                        pairRequest = new PairRequestPayload(deviceId, GetString(payloadEl, "deviceName"), proof);
+                }
+            }
+            else if (errors.Count == 0 && messageType == "AUTHENTICATE")
+            {
+                if (!root.TryGetProperty("payload", out var payloadEl) || payloadEl.ValueKind != JsonValueKind.Object)
+                {
+                    errors.Add("Missing payload for AUTHENTICATE message");
+                }
+                else
+                {
+                    var deviceId = GetString(payloadEl, "deviceId") ?? "";
+                    var nonce = GetString(payloadEl, "nonce") ?? "";
+                    var authTimestamp = GetString(payloadEl, "timestamp") ?? "";
+                    var proof = GetString(payloadEl, "proof") ?? "";
+                    if (string.IsNullOrWhiteSpace(deviceId))
+                        errors.Add("payload.deviceId is required for AUTHENTICATE");
+                    if (string.IsNullOrWhiteSpace(nonce))
+                        errors.Add("payload.nonce is required for AUTHENTICATE");
+                    if (string.IsNullOrWhiteSpace(authTimestamp) || !DateTimeOffset.TryParse(authTimestamp, out _))
+                        errors.Add("payload.timestamp is missing or invalid for AUTHENTICATE");
+                    if (string.IsNullOrWhiteSpace(proof))
+                        errors.Add("payload.proof is required for AUTHENTICATE");
+
+                    if (errors.Count == 0)
+                        authenticate = new AuthenticatePayload(deviceId, nonce, authTimestamp, proof);
+                }
+            }
 
             if (errors.Count > 0)
                 return DecodeResult.Fail(DecodeStatus.ValidationFailed, errors.ToArray());
 
-            var message = new DecodedMessage(protocolVersion, messageType, messageId, timestamp, notification, removedNotificationId);
+            var message = new DecodedMessage(
+                protocolVersion, messageType, messageId, timestamp, notification, removedNotificationId,
+                pairRequest, authenticate);
             return DecodeResult.Ok(message);
         }
     }

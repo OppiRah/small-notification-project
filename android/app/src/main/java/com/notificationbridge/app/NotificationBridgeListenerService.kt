@@ -12,7 +12,7 @@ class NotificationBridgeListenerService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         BridgeLogger.i(TAG, "Listener connected")
-        TransportClient.start()
+        TransportClient.start(applicationContext)
     }
 
     override fun onListenerDisconnected() {

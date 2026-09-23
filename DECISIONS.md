@@ -140,14 +140,85 @@ This intentionally diverges from ARCHITECTURE.md 4.3's dedup/update model as ori
 
 ---
 
+## ADR-009 — Pairing and transport encryption: TLS with trust-on-first-use pinning
+
+### Decision
+
+The Windows receiver upgrades from `ws://` to `wss://` using a self-signed certificate it
+generates and persists on first run. Pairing is a short-lived (2 minute) 6-digit code shown on the
+PC; the phone connects, HMAC-SHA256-signs the certificate's SHA-256 fingerprint with that code,
+and sends it as proof in `PAIR_REQUEST`. The PC verifies the same computation against its own
+fingerprint and, on match, generates a persistent per-device shared secret and returns it in
+`PAIR_RESPONSE`. The phone pins that certificate fingerprint from then on (trust-on-first-use,
+like an SSH host key) rather than trusting a certificate authority.
+
+### Reason
+
+Closes the "notification interception" and "unauthorized notification injection" threats in
+SECURITY.md's threat model using only established platform primitives (TLS, HMAC-SHA256, SHA-256)
+per SECURITY.md #7 -- no invented cryptography. Binding the pairing proof to the specific
+certificate fingerprint defeats a simple man-in-the-middle: an attacker presenting a different
+certificate can't forge a matching proof without knowing the code.
+
+### Consequence
+
+Port/discovery is manual for MVP: the user reads the PC's port (7787, fixed) and pairing code off
+the Windows app and enters them on the phone. No automatic discovery (mDNS/broadcast) exists yet;
+that remains a genuinely unresolved future decision, not blocking Phase 5's security goal.
+
+---
+
+## ADR-010 — Reconnect authentication: HMAC-SHA256 challenge-response
+
+### Decision
+
+Every connection (not just first pairing) must complete an `AUTHENTICATE` exchange before the PC
+accepts any `NOTIFICATION`/`NOTIFICATION_REMOVED` message. The phone sends its deviceId, a fresh
+nonce, a timestamp, and `HMAC-SHA256(sharedSecret, deviceId|nonce|timestamp)`; the PC recomputes
+using its stored copy of that device's secret and rejects if it doesn't match, the timestamp is
+missing/unparseable, or is older than 5 minutes.
+
+### Reason
+
+Satisfies SECURITY.md #2 ("the PC must reject notification data from untrusted peers") and #6
+(authentication state as part of required input validation) on every connection, not just the
+initial pairing handshake. Unpairing (removing a device from the PC's trusted-device store)
+immediately revokes it, since future `AUTHENTICATE` attempts will fail the secret lookup.
+
+---
+
+## Network path findings (Phase 5 real-device testing)
+
+Status legend: **Confirmed** (directly tested), **Likely** (strong evidence, not exhaustively
+proven), **Not yet tested**.
+
+- **Confirmed** -- home Wi-Fi (both devices on the same router) failed with `ConnectException` on
+  the Android side and `Destination Host Unreachable` on a raw ping test between devices, even
+  though both devices were on the same subnet and the Windows firewall/app were confirmed correct.
+- **Likely** -- the cause is AP/client isolation on the home router (common default on ISP-provided
+  routers), which blocks direct device-to-device LAN traffic while still allowing internet access.
+  Not exhaustively proven (the router's own settings were not inspected), but consistent with every
+  symptom observed.
+- **Confirmed** -- using the Android phone's own Wi-Fi hotspot as the network (PC connects to the
+  phone's hotspot, bypassing the home router entirely) works end to end: pairing, authentication,
+  and live notification delivery all succeeded.
+- **Confirmed** -- Windows classifies a phone hotspot connection as network category "Public," not
+  "Private." The app's firewall rule initially only allowed "Private" and had to be manually
+  extended to include "Public" (`Set-NetFirewallRule -Profile Private,Public`) before the hotspot
+  path worked.
+- **Not yet tested** -- USB tethering as a network path (only `adb reverse`-tunneled loopback and
+  Wi-Fi hotspot have been tested).
+- Router configuration (disabling AP isolation) is intentionally not required by this project; the
+  phone hotspot is the supported workaround when the home network isolates devices from each other.
+
+---
+
 ## Unresolved decisions
 
 The implementation team must explicitly decide:
 
-- port/discovery strategy
-- pairing mechanism
-- authentication protocol
-- encryption strategy
+- automatic endpoint discovery strategy (mDNS/broadcast); manual host:port entry is the accepted
+  MVP behavior per ADR-009
 - Android minimum SDK
 - Windows minimum version
 - icon transfer format

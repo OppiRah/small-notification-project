@@ -78,6 +78,100 @@ public class ProtocolDecoderTests
     }
 
     [Fact]
+    public void PairRequest_DecodesSuccessfully()
+    {
+        var json = """
+        {
+          "protocolVersion": 1,
+          "messageType": "PAIR_REQUEST",
+          "messageId": "test-message-1",
+          "timestamp": "2026-09-23T10:00:00Z",
+          "payload": {
+            "deviceId": "device-1",
+            "deviceName": "My Phone",
+            "proof": "c29tZS1wcm9vZg=="
+          }
+        }
+        """;
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.Equal("device-1", result.Message!.PairRequest!.DeviceId);
+        Assert.Equal("My Phone", result.Message.PairRequest.DeviceName);
+    }
+
+    [Fact]
+    public void PairRequest_MissingProof_IsRejected()
+    {
+        var json = """
+        {
+          "protocolVersion": 1,
+          "messageType": "PAIR_REQUEST",
+          "messageId": "test-message-1",
+          "timestamp": "2026-09-23T10:00:00Z",
+          "payload": {
+            "deviceId": "device-1"
+          }
+        }
+        """;
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.ValidationFailed, result.Status);
+        Assert.Contains(result.Errors, e => e.Contains("proof"));
+    }
+
+    [Fact]
+    public void Authenticate_DecodesSuccessfully()
+    {
+        var json = """
+        {
+          "protocolVersion": 1,
+          "messageType": "AUTHENTICATE",
+          "messageId": "test-message-1",
+          "timestamp": "2026-09-23T10:00:00Z",
+          "payload": {
+            "deviceId": "device-1",
+            "nonce": "nonce-1",
+            "timestamp": "2026-09-23T10:00:00Z",
+            "proof": "c29tZS1wcm9vZg=="
+          }
+        }
+        """;
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.Equal("device-1", result.Message!.Authenticate!.DeviceId);
+        Assert.Equal("nonce-1", result.Message.Authenticate.Nonce);
+    }
+
+    [Fact]
+    public void Authenticate_InvalidTimestamp_IsRejected()
+    {
+        var json = """
+        {
+          "protocolVersion": 1,
+          "messageType": "AUTHENTICATE",
+          "messageId": "test-message-1",
+          "timestamp": "2026-09-23T10:00:00Z",
+          "payload": {
+            "deviceId": "device-1",
+            "nonce": "nonce-1",
+            "timestamp": "not-a-timestamp",
+            "proof": "c29tZS1wcm9vZg=="
+          }
+        }
+        """;
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.ValidationFailed, result.Status);
+        Assert.Contains(result.Errors, e => e.Contains("timestamp"));
+    }
+
+    [Fact]
     public void InvalidJson_IsRejectedAsMalformed()
     {
         var result = ProtocolDecoder.Decode("{ not valid json ");

@@ -6,6 +6,8 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -18,6 +20,19 @@
                     Padding="8,4" Click="SendMalformedButton_Click"/>
         </StackPanel>
 
-        <ListBox x:Name="LogList" Grid.Row="2" FontFamily="Consolas" FontSize="12"/>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,4">
+            <Button x:Name="PairButton" Content="Pair new device" Padding="8,4" Margin="0,0,8,0"
+                    Click="PairButton_Click"/>
+            <TextBlock x:Name="PairingStatusText" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Trusted devices:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="TrustedDevicesCombo" Width="260" Margin="0,0,8,0"/>
+            <Button x:Name="UnpairButton" Content="Unpair selected" Padding="8,4"
+                    Click="UnpairButton_Click"/>
+        </StackPanel>
+
+        <ListBox x:Name="LogList" Grid.Row="4" FontFamily="Consolas" FontSize="12"/>
     </Grid>
 </Window>

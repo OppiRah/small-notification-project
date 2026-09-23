@@ -1,48 +1,61 @@
 package com.notificationbridge.app
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import java.util.Base64
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.json.JSONObject
 
-// Dev-only endpoint: reaches the Windows receiver over `adb reverse`, never the open LAN.
-// Real device pairing/discovery is Phase 5 work (see DECISIONS.md unresolved: port/discovery).
+// Connects to the PC paired via PairingClient, over TLS pinned to that PC's certificate
+// fingerprint (ADR-009), and authenticates every connection with the shared secret established
+// during pairing (ADR-010) -- notifications are only ever sent once AUTH_RESULT succeeds.
 object TransportClient {
 
-    enum class State { DISCONNECTED, CONNECTING, CONNECTED }
+    enum class State { NOT_PAIRED, DISCONNECTED, CONNECTING, AUTHENTICATING, CONNECTED }
 
     private const val TAG = "NotificationBridge"
-    private const val ENDPOINT = "ws://127.0.0.1:7787/ws/"
     private const val INITIAL_BACKOFF_MS = 1_000L
     private const val MAX_BACKOFF_MS = 30_000L
 
-    private val client = OkHttpClient()
     private val handler = Handler(Looper.getMainLooper())
     private val listeners = CopyOnWriteArrayList<(State) -> Unit>()
 
     private var webSocket: WebSocket? = null
     private var backoffMs = INITIAL_BACKOFF_MS
     private var manuallyStopped = true
+    private var authenticated = false
 
     @Volatile
-    var state: State = State.DISCONNECTED
+    var state: State = State.NOT_PAIRED
         private set
 
     fun addStateListener(listener: (State) -> Unit) = listeners.add(listener)
     fun removeStateListener(listener: (State) -> Unit) = listeners.remove(listener)
 
-    fun start() {
+    fun start(context: Context) {
+        val pc = TrustedPcStore.load(context.applicationContext)
+        if (pc == null) {
+            setState(State.NOT_PAIRED)
+            return
+        }
+
         manuallyStopped = false
         backoffMs = INITIAL_BACKOFF_MS
-        connect()
+        connect(pc)
     }
 
     fun stop() {
         manuallyStopped = true
+        authenticated = false
         handler.removeCallbacksAndMessages(null)
         webSocket?.close(1000, "client stopping")
         webSocket = null
@@ -50,38 +63,88 @@ object TransportClient {
     }
 
     fun send(json: String) {
-        val sent = webSocket?.send(json) ?: false
+        val sent = authenticated && (webSocket?.send(json) ?: false)
         if (!sent) {
-            BridgeLogger.w(TAG, "Dropped message: transport not connected")
+            BridgeLogger.w(TAG, "Dropped message: transport not authenticated")
         }
     }
 
-    private fun connect() {
+    private fun connect(pc: TrustedPc) {
         setState(State.CONNECTING)
-        val request = Request.Builder().url(ENDPOINT).build()
+
+        val (socketFactory, trustManager) = TlsTrust.pinnedSocketFactory(pc.certFingerprint)
+        val client = OkHttpClient.Builder()
+            .sslSocketFactory(socketFactory, trustManager)
+            // Identity is verified by exact certificate fingerprint pinning above, a stronger
+            // guarantee than hostname/CN matching -- the self-signed cert has no SAN for the
+            // PC's LAN IP, so default hostname verification would otherwise reject it.
+            .hostnameVerifier { _, _ -> true }
+            .build()
+
+        val request = Request.Builder().url("wss://${pc.host}:${pc.port}/ws/").build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                backoffMs = INITIAL_BACKOFF_MS
-                setState(State.CONNECTED)
-                BridgeLogger.i(TAG, "Transport connected")
+                setState(State.AUTHENTICATING)
+                sendAuthenticate(webSocket, pc)
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                handleMessage(pc, text)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 BridgeLogger.w(TAG, "Transport connection failed: ${t.message}")
-                scheduleReconnect()
+                scheduleReconnect(pc)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 BridgeLogger.w(TAG, "Transport closed: $reason")
-                scheduleReconnect()
+                scheduleReconnect(pc)
             }
         })
     }
 
-    private fun scheduleReconnect() {
+    private fun sendAuthenticate(webSocket: WebSocket, pc: TrustedPc) {
+        val nonce = UUID.randomUUID().toString()
+        val timestamp = ProtocolMessages.nowIsoTimestamp()
+        val secret = Base64.getDecoder().decode(pc.sharedSecretBase64)
+
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(secret, "HmacSHA256"))
+        val message = "${pc.deviceId}|$nonce|$timestamp"
+        val proof = mac.doFinal(message.toByteArray(Charsets.UTF_8))
+        val proofBase64 = Base64.getEncoder().encodeToString(proof)
+
+        webSocket.send(ProtocolMessages.authenticate(pc.deviceId, nonce, timestamp, proofBase64))
+    }
+
+    private fun handleMessage(pc: TrustedPc, text: String) {
+        val json = try {
+            JSONObject(text)
+        } catch (e: org.json.JSONException) {
+            return
+        }
+        if (json.optString("messageType") != "AUTH_RESULT") return
+
+        val payload = json.optJSONObject("payload") ?: JSONObject()
+        if (payload.optBoolean("success", false)) {
+            authenticated = true
+            backoffMs = INITIAL_BACKOFF_MS
+            setState(State.CONNECTED)
+            BridgeLogger.i(TAG, "Transport authenticated")
+        } else {
+            authenticated = false
+            BridgeLogger.w(TAG, "Authentication rejected by PC")
+            webSocket?.close(1000, "auth rejected")
+            scheduleReconnect(pc)
+        }
+    }
+
+    private fun scheduleReconnect(pc: TrustedPc) {
+        authenticated = false
         setState(State.DISCONNECTED)
         if (manuallyStopped) return
-        handler.postDelayed({ if (!manuallyStopped) connect() }, backoffMs)
+        handler.postDelayed({ if (!manuallyStopped) connect(pc) }, backoffMs)
         backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
     }
 

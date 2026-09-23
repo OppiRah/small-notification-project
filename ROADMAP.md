@@ -3,16 +3,14 @@
 ## Current phase
 
 ```text
-Current: Phase 4 — Bubble renderer (confirmed working on real hardware: transparent, topmost,
-non-activating, click-through overlay in the top-right corner of the primary monitor; fade-in on
-arrival and fade-out on expiry; independent per-bubble 6s timers; verified real stacking with
-back-to-back messages in the same conversation. Deliberate product decision (diverges from
-ARCHITECTURE.md 4.3's original update-in-place default): every incoming message becomes its own
-bubble, keyed by the wire envelope's messageId rather than Android's notificationId, since the
-user wants a running message log rather than "latest message only." NOTIFICATION_REMOVED is
-intentionally ignored for display -- bubbles only ever expire on their own timer. Monitor
-selection still hardcoded to primary (Phase 6 adds picking); icon display deferred to Phase 8 per
-ROADMAP. Phases 1-3 all confirmed working on real hardware.)
+Current: Phase 5 — Pairing/security (confirmed working end to end on real hardware, over real
+WiFi: TLS with trust-on-first-use certificate pinning, 6-digit pairing code with HMAC
+challenge-response, persistent trusted-device store on both sides, and per-connection
+authentication gating notification delivery. See DECISIONS.md ADR-009/ADR-010 and its "Network
+path findings" section for the AP-isolation discovery and the phone-hotspot workaround. Phases 1-4
+all confirmed working on real hardware. This is the phase ROADMAP.md says must work before the
+system can be considered production-ready -- it now does, over the hotspot path; home-Wi-Fi
+connectivity is blocked by router-side AP isolation, not by anything in this app.)
 ```
 
 Update this line as work progresses. Any session (you or Claude Code) should check here first
