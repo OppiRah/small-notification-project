@@ -12,11 +12,13 @@ class NotificationBridgeListenerService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         BridgeLogger.i(TAG, "Listener connected")
+        TransportClient.start()
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         BridgeLogger.w(TAG, "Listener disconnected, requesting rebind")
+        TransportClient.stop()
         requestRebind(ComponentName(applicationContext, NotificationBridgeListenerService::class.java))
     }
 
@@ -38,11 +40,13 @@ class NotificationBridgeListenerService : NotificationListenerService() {
 
         BridgeLogger.i(TAG, "Notification posted package=${normalized.packageName} category=${normalized.category}")
         NotificationRepository.upsert(normalized)
+        TransportClient.send(ProtocolMessages.notificationPosted(normalized))
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         BridgeLogger.i(TAG, "Notification removed package=${sbn.packageName}")
         NotificationRepository.remove(sbn.key)
+        TransportClient.send(ProtocolMessages.notificationRemoved(sbn.key))
     }
 
     private fun resolveAppName(packageName: String): String {

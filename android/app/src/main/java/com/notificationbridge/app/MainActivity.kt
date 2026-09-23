@@ -15,7 +15,9 @@ import android.widget.TextView
 class MainActivity : Activity() {
 
     private lateinit var listContainer: LinearLayout
+    private lateinit var statusText: TextView
     private val onNotificationsChanged = { runOnUiThread { renderNotifications() } }
+    private val onTransportStateChanged = { _: TransportClient.State -> runOnUiThread { renderTransportStatus() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,6 +31,11 @@ class MainActivity : Activity() {
             text = "Notification Bridge — Dev Inspector"
             textSize = 20f
         })
+
+        statusText = TextView(this).apply {
+            setPadding(0, 8, 0, 8)
+        }
+        root.addView(statusText)
 
         root.addView(Button(this).apply {
             text = "Open notification access settings"
@@ -50,12 +57,19 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         NotificationRepository.addListener(onNotificationsChanged)
+        TransportClient.addStateListener(onTransportStateChanged)
         renderNotifications()
+        renderTransportStatus()
     }
 
     override fun onPause() {
         super.onPause()
         NotificationRepository.removeListener(onNotificationsChanged)
+        TransportClient.removeStateListener(onTransportStateChanged)
+    }
+
+    private fun renderTransportStatus() {
+        statusText.text = "Transport: ${TransportClient.state}"
     }
 
     private fun renderNotifications() {

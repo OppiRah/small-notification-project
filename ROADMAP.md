@@ -3,7 +3,7 @@
 ## Current phase
 
 ```text
-Current: Phase 2 — Windows receiver prototype (in progress — WPF dev receiver built: local WebSocket listener, protocol parser/validator, connection status, synthetic test buttons. Phase 1 Android listener confirmed working on real device, capturing Messenger/Instagram organically while Phase 2 continues.)
+Current: Phase 3 — End-to-end transport (confirmed working: real Android notifications flow through TransportClient -> USB-tunneled WebSocket (adb reverse, LAN pairing/auth deferred to Phase 5) -> Windows receiver -> protocol decode -> dev panel. Verified with real Messenger notifications. Known follow-up: Messenger fires multiple posted events per message; de-dup/update semantics need real design before Phase 4 bubble rendering. Phases 1 and 2 both confirmed working on real hardware.)
 ```
 
 Update this line as work progresses. Any session (you or Claude Code) should check here first
