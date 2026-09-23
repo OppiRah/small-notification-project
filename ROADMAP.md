@@ -3,7 +3,7 @@
 ## Current phase
 
 ```text
-Current: Phase 0 — Research and decisions
+Current: Phase 2 — Windows receiver prototype (in progress — WPF dev receiver built: local WebSocket listener, protocol parser/validator, connection status, synthetic test buttons. Phase 1 Android listener confirmed working on real device, capturing Messenger/Instagram organically while Phase 2 continues.)
 ```
 
 Update this line as work progresses. Any session (you or Claude Code) should check here first

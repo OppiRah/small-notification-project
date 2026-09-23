@@ -187,6 +187,42 @@ Documentation
 
 ---
 
+## First physical run (Phase 1 — Android device)
+
+Steps to get the listener service running on a real phone and watch it log real notifications.
+
+1. On the phone: Settings → About phone → tap Build number 7x to unlock Developer Options.
+2. Settings → Developer options → enable USB debugging.
+3. Connect the phone to the laptop via USB. Accept the "Allow USB debugging?" prompt on the
+   phone (check "always allow from this computer" if this is a trusted dev machine).
+4. Verify the connection:
+   ```text
+   adb devices
+   ```
+   The device should show as `device`, not `unauthorized` or `offline`.
+5. Build and install the debug APK:
+   ```text
+   cd android
+   ./gradlew installDebug
+   ```
+   (use `gradlew.bat` if not running inside a POSIX shell)
+6. Grant notification access manually — this cannot be requested programmatically:
+   Settings → Apps → Special app access → Notification access → enable for this app.
+   Exact path varies by OEM/Android version (some put it under Settings → Notifications →
+   "Device & app notifications" or "Notification access").
+7. Watch logs filtered to this app's tag:
+   ```text
+   adb logcat -s NotificationBridge
+   ```
+8. Trigger notifications from the apps listed in ROADMAP.md's Phase 1 test matrix (messaging,
+   social, email, browser, system, media, grouped, ongoing, expanded, multi-message) and confirm
+   each one logs a `Notification posted package=... category=...` line.
+
+Notification bodies are not logged by default (`BridgeLogger.verbose` is `false` per
+SECURITY.md) — only metadata. Do not flip `verbose` to `true` outside a local debug session.
+
+---
+
 ## Git workflow
 
 Because this project is developed with AI assistance:

@@ -4,3 +4,6 @@ android/build/
 android/app/build/
 android/*.iml
 android/.idea/
+
+windows/**/bin/
+windows/**/obj/

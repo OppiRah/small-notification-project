@@ -1,0 +1,23 @@
+<Window x:Class="NotificationBridge.Windows.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Notification Bridge - Dev Receiver" Height="450" Width="700">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="StatusText" Grid.Row="0" FontWeight="Bold" Margin="0,0,0,8"/>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button x:Name="SendValidButton" Content="Send valid test notification"
+                    Padding="8,4" Margin="0,0,8,0" Click="SendValidButton_Click"/>
+            <Button x:Name="SendMalformedButton" Content="Send malformed test message"
+                    Padding="8,4" Click="SendMalformedButton_Click"/>
+        </StackPanel>
+
+        <ListBox x:Name="LogList" Grid.Row="2" FontFamily="Consolas" FontSize="12"/>
+    </Grid>
+</Window>

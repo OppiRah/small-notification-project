@@ -81,12 +81,45 @@ The product is an ephemeral notification bridge. Persistence increases privacy r
 
 ---
 
+## ADR-006 — Windows UI framework: WPF (.NET)
+
+### Decision
+
+Build the Windows receiver/overlay with WPF (.NET).
+
+### Reason
+
+Mature, well-documented, and the most direct path to a transparent, click-through, always-on-top
+overlay window plus a system tray icon. Ships as a plain executable with no MSIX packaging step,
+which keeps the system easy to understand and debug per ARCHITECTURE.md's stated goal.
+
+### Alternatives considered
+
+- WinUI 3 / Windows App SDK — more modern, but MSIX packaging and undecorated transparent overlay
+  windows are notably more involved to get working correctly.
+- Avalonia — solid overlay support, but its cross-platform ability is unneeded on a Windows-only
+  tool.
+
+---
+
+## ADR-007 — Transport: WebSocket over local network
+
+### Decision
+
+Use WebSocket over the local network as the protocol transport, per PROTOCOL.md's stated
+candidate.
+
+### Reason
+
+Persistent bidirectional connection, simple message framing, natural fit for heartbeat/reconnect
+logic, no polling.
+
+---
+
 ## Unresolved decisions
 
 The implementation team must explicitly decide:
 
-- Windows UI framework
-- transport
 - port/discovery strategy
 - pairing mechanism
 - authentication protocol
