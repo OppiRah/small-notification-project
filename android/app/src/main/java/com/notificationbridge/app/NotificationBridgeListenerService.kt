@@ -30,6 +30,20 @@ class NotificationBridgeListenerService : NotificationListenerService() {
             return
         }
 
+        // Group summaries are Android's own aggregation placeholder, not user-facing content.
+        if (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) {
+            BridgeLogger.i(TAG, "Skipped group summary notification package=${sbn.packageName}")
+            return
+        }
+
+        // CATEGORY_SERVICE is a platform-defined signal for background/status notifications
+        // (e.g. Messenger's "Chat heads active"), not user-facing content. App-agnostic per
+        // ADR-003: this checks Android's own category constant, not any specific package.
+        if (sbn.notification.category == Notification.CATEGORY_SERVICE) {
+            BridgeLogger.i(TAG, "Skipped service-category notification package=${sbn.packageName}")
+            return
+        }
+
         val normalized = NotificationExtractor.extract(
             key = sbn.key,
             packageName = sbn.packageName,
@@ -38,7 +52,7 @@ class NotificationBridgeListenerService : NotificationListenerService() {
             notification = sbn.notification,
         )
 
-        BridgeLogger.i(TAG, "Notification posted package=${normalized.packageName} category=${normalized.category}")
+        BridgeLogger.i(TAG, "Notification posted package=${normalized.packageName} category=${normalized.category} key=${normalized.key}")
         NotificationRepository.upsert(normalized)
         TransportClient.send(ProtocolMessages.notificationPosted(normalized))
     }

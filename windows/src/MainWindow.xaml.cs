@@ -40,7 +40,7 @@ public partial class MainWindow : Window
             if (result.Status == DecodeStatus.Ok && result.Message is { } msg)
             {
                 var summary = msg.Notification is { } n
-                    ? $"{msg.MessageType} package={n.PackageName} title=\"{n.Title}\""
+                    ? $"{msg.MessageType} package={n.PackageName} title=\"{n.Title}\" body=\"{n.Body}\""
                     : msg.MessageType;
                 LogList.Items.Add($"[OK] {summary}");
             }

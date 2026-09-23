@@ -3,7 +3,7 @@
 ## Current phase
 
 ```text
-Current: Phase 3 — End-to-end transport (confirmed working: real Android notifications flow through TransportClient -> USB-tunneled WebSocket (adb reverse, LAN pairing/auth deferred to Phase 5) -> Windows receiver -> protocol decode -> dev panel. Verified with real Messenger notifications. Known follow-up: Messenger fires multiple posted events per message; de-dup/update semantics need real design before Phase 4 bubble rendering. Phases 1 and 2 both confirmed working on real hardware.)
+Current: Phase 3 — End-to-end transport (confirmed working end to end with real Messenger/TikTok/SMS notifications, full content visible on the Windows dev panel. Added app-agnostic filtering for Android's own CATEGORY_SERVICE and FLAG_GROUP_SUMMARY notifications, which removed Messenger's noisy "Chat heads active" bursts and TikTok's group-summary placeholder. Real message notifications correctly reuse the same notificationId per conversation, confirming update-vs-new identity will work as ARCHITECTURE.md expects. Phases 1 and 2 both confirmed working on real hardware. Next: Phase 4 bubble renderer, starting with the Windows NotificationManager (dedup/update/lifecycle) since it owns this same identity logic.)
 ```
 
 Update this line as work progresses. Any session (you or Claude Code) should check here first
