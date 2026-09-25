@@ -1,4 +1,7 @@
 android/local.properties
+android/keystore.properties
+*.jks
+*.keystore
 android/.gradle/
 android/build/
 android/app/build/
@@ -7,3 +10,5 @@ android/.idea/
 
 windows/**/bin/
 windows/**/obj/
+windows/installer/publish/
+dist/

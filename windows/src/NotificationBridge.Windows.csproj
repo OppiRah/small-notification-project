@@ -9,6 +9,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>NotificationBridge.Windows</RootNamespace>
     <AssemblyName>NotificationBridge.Windows</AssemblyName>
+    <Version>0.1.0</Version>
+    <!-- The app is English-only; skip the translated .NET/WPF resource DLLs in published output. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
 </Project>
