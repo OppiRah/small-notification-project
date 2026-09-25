@@ -4,7 +4,7 @@
 
 **Repo**: `github.com/OppiRah/small-notification-project` — `android/` (Kotlin, native Android app) and `windows/` (C#/.NET 9, WPF).
 
-This document summarizes everything implemented, tested, broken, and fixed across Phases 1–7 of the project's roadmap, for handoff/discussion purposes.
+This document summarizes everything implemented, tested, broken, and fixed across Phases 1–8 of the project's roadmap, for handoff/discussion purposes.
 
 ---
 
@@ -142,6 +142,23 @@ Built and verified on real hardware, in the order below. Windows tests: 33; Andr
 
 ---
 
+### v0.1.0 release audit — final hardening pass
+A read-through of the actual source (both apps, the installer, the build config) rather than the docs, followed by fixes for what was really wrong. Windows tests: 37; Android unit tests: 18; both pass. The signed release APK and the installer were rebuilt from the result.
+
+**Fixed (confirmed issues):**
+- **Shared secret in the phone's logs.** `PairingClient` logged the whole `PAIR_RESPONSE`, which contains the per-device secret, to logcat. It now logs nothing from the message. The same function now turns a malformed or incomplete reply into a pairing failure instead of throwing on OkHttp's reader thread (the pairing socket trusts any certificate, so its replies are not trusted). Tests: `PairingClientTest`.
+- **Pairing code could be guessed.** The 6-digit code had no attempt limit within its 2-minute window, so anyone on the LAN could try all 1,000,000 values. It is now single-use and discarded after 5 wrong proofs, and `PairingSession` is thread-safe (the network threads verify while the UI thread starts/stops it). Tests: four new `PairingSessionTests`.
+- **Notification text in the Windows Developer log.** The tab logged title and body and kept up to 500 of them, against SECURITY.md #4. It now logs message type and package only.
+- **Developer "Send valid test notification" did nothing visible.** Since Phase 5 an unauthenticated synthetic client is rejected, so the button only logged. It now shows the bubble locally, which is also a handy way to check placement without a phone.
+
+**Reviewed and accepted (not changed):** the pairing code can be recovered offline by an attacker who is actively in the middle during pairing (documented in ADR-009 and SECURITY.md); secrets are unencrypted at rest under the user profile / app-private storage; there is no `AUTHENTICATE` replay cache (the proof only travels inside the pinned TLS channel); unauthenticated connections are not time-limited (nuisance-level, LAN only); clocks must agree within 5 minutes. The `NotificationManager` keeps a small arrival-order queue that grows by one id per notification when the bubble cap is never hit (a few hundred bytes per day; not worth changing code for). Everything else checked (TLS 1.2/1.3 only, certificate pinning by SHA-256, HMAC construction and constant-time comparison, nonce and secret generation, size caps, icon validation, reconnect/generation-counter logic, listener lifecycle, monitor and DPI placement, installer, release-vs-debug configuration) matched the docs and needed no change.
+
+**Not tested in this pass (environment limitation):** phone restart (no phone attached to adb), PC sleep/wake and monitor unplug/replug (need physical action and would interrupt the session), reduce-motion and high-contrast rendering (they need system-wide Windows settings changed while the app runs). All five are listed with steps in TESTING.md. A clean-install run on a second machine was not done either. Installer and APK were built and their signatures/flags inspected: the APK is v2-signed with the release key (not the debug key) and not debuggable.
+
+**Housekeeping:** `ROADMAP.md`, `DECISIONS.md` (open questions resolved), `PROTOCOL.md` (no longer "Draft", message table added), `SECURITY.md` (implementation status and limitations), `ARCHITECTURE.md`, `REQUIREMENTS.md`, `TESTING.md` and `README.md` (limitations) now match the code.
+
+---
+
 ## Current status
 
 **Phases 1–8 are working on real hardware**, apart from the untested items listed under "What's left" below. It is now installable: a self-contained Windows installer and a signed Android release APK. The system is usable day-to-day: pair once (persists across restarts), notifications from Messenger/Instagram/etc. mirror to Windows as bubbles, fully encrypted and authenticated, with real user-facing settings — over the user's actual home WiFi, recovering on its own from drops.
@@ -158,3 +175,5 @@ Built and verified on real hardware, in the order below. Windows tests: 33; Andr
 - Only one Windows PC can be paired with a given phone at a time in the current UI flow (the architecture supports multiple trusted devices on the PC side, but there's no multi-PC pairing UI on the phone).
 - The Windows installer is not code-signed, so Windows SmartScreen may show an "unknown publisher" warning when it is run. The Android release is signed with a self-generated key (not distributed through the Play Store).
 - Only Narrator-visible basics exist for accessibility: there is no screen-reader announcement of new bubbles, and the app has no custom executable icon.
+- Security tradeoffs accepted for v0.1.0 (see SECURITY.md): the pairing code is recoverable by an active man-in-the-middle during the 2-minute pairing window, secrets are not encrypted at rest, and phone and PC clocks must agree within 5 minutes.
+- Closing the Windows app's window ends the bridge (there is no tray icon), and "Start with Windows" opens that window at sign-in.

@@ -62,6 +62,31 @@ object PairingClient {
         }
     }
 
+    // Returns null for any message that isn't a PAIR_RESPONSE. The server is not yet trusted at this
+    // point (the pairing socket accepts any certificate), so a malformed reply must become a
+    // failure, never an exception on OkHttp's reader thread.
+    internal fun parsePairResponse(text: String, host: String, port: Int, fingerprint: String, deviceId: String): Result? {
+        return try {
+            val json = JSONObject(text)
+            if (json.optString("messageType") != "PAIR_RESPONSE") return null
+
+            val payload = json.optJSONObject("payload") ?: JSONObject()
+            if (payload.optBoolean("success", false)) {
+                Result.Success(TrustedPc(
+                    host = host,
+                    port = port,
+                    certFingerprint = fingerprint,
+                    deviceId = deviceId,
+                    sharedSecretBase64 = payload.getString("sharedSecret"),
+                ))
+            } else {
+                Result.Failure(payload.optString("error", "pairing failed"))
+            }
+        } catch (e: org.json.JSONException) {
+            Result.Failure("malformed pairing response")
+        }
+    }
+
     private fun connectAndSendPairRequest(
         host: String,
         port: Int,
@@ -86,22 +111,9 @@ object PairingClient {
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                BridgeLogger.i(TAG, "Pairing: message received: $text")
-                val json = JSONObject(text)
-                if (json.optString("messageType") != "PAIR_RESPONSE") return
-
-                val payload = json.optJSONObject("payload") ?: JSONObject()
-                if (payload.optBoolean("success", false)) {
-                    onResult(Result.Success(TrustedPc(
-                        host = host,
-                        port = port,
-                        certFingerprint = fingerprint,
-                        deviceId = deviceId,
-                        sharedSecretBase64 = payload.getString("sharedSecret"),
-                    )))
-                } else {
-                    onResult(Result.Failure(payload.optString("error", "pairing failed")))
-                }
+                // Never log the message itself: a successful PAIR_RESPONSE carries the shared secret.
+                val result = parsePairResponse(text, host, port, fingerprint, deviceId) ?: return
+                onResult(result)
                 webSocket.close(1000, "pairing complete")
             }
 

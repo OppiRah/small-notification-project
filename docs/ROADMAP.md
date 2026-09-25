@@ -3,15 +3,13 @@
 ## Current phase
 
 ```text
-Current: Phase 6 — Settings (confirmed working: a real Settings tab replaces dev-panel-only
-pairing, with persisted (JSON in %LOCALAPPDATA%) monitor selection (real multi-monitor
-enumeration via EnumDisplayMonitors, not just primary), corner placement (all 4 UI_UX.md options),
-bubble duration, max visible bubbles (oldest evicted when over cap), animation on/off, and start
--with-Windows (HKCU Run key). Settings changes apply live via OverlayWindow.ApplySettings() without
-restarting. A "Developer" tab keeps the old synthetic-test tooling. Phase 5 pairing/security
-confirmed working end to end on real hardware over BOTH home Wi-Fi and the phone's Wi-Fi hotspot
--- see DECISIONS.md ADR-009/ADR-010 and its "Network path findings" section for the AP-isolation
-false alarm. Phases 1-5 all confirmed working on real hardware.)
+Current: v0.1.0 release hardening -- Phases 1-8 are complete and working on real hardware (Phase 8
+delivered hover-to-pause, app icons, visual polish, the Windows installer and a signed Android
+release APK). The final audit pass tightened pairing (single-use, attempt-limited code) and removed
+secrets/notification text from logs; see SESSION_SUMMARY.md. Still unverified on hardware: PC
+sleep/wake, monitor unplug/replug, phone restart, and reduce-motion / high-contrast rendering (a
+checklist is in TESTING.md). Phase 9 is optional and not started; do not begin it unless a real need
+appears.)
 ```
 
 Update this line as work progresses. Any session (you or Claude Code) should check here first

@@ -2,7 +2,10 @@
 
 ## Status
 
-Draft. This document defines the direction; implementation must validate the details against the chosen transport and security model.
+Version 1, implemented (`protocolVersion` is `1`). Transport is WebSocket over TLS (`wss://`, port
+7787). The examples below match what the phone and PC actually send; section 10 lists the message
+types in use. Anything not listed there (`HELLO`, `HEARTBEAT`, `ACK`, `ERROR`) is recognized by the
+PC's decoder but never sent: liveness is handled by WebSocket ping/pong instead.
 
 ---
 
@@ -120,9 +123,8 @@ Never deserialize arbitrary input directly into a trusted UI object.
 
 ## 6. Size limits
 
-Define hard maximums.
-
-Example starting points for discussion:
+Hard maximums, enforced by the PC (`ProtocolLimits`); a notification that exceeds any of them is
+rejected whole:
 
 ```text
 app name:       256 chars
@@ -130,12 +132,12 @@ title:          1024 chars
 body:           8192 chars
 expanded lines: 100 entries
 line length:    4096 chars
-message:        bounded by protocol frame limit
+icon:           64 KB of base64, PNG, at most 256x256 (an unusable icon is ignored, not rejected)
+message:        64 KB before authentication, 2 MB after
 ```
 
-These are not final requirements.
-
-The implementation should choose limits based on Android behavior and practical UI constraints.
+The phone clips text to these limits (with a trailing "…") before sending, so long notifications
+still arrive.
 
 ---
 
@@ -191,4 +193,23 @@ AUTHENTICATED
 NORMAL TRAFFIC
 ```
 
-The exact pairing/authentication protocol requires a dedicated security review before implementation.
+The pairing and authentication design is recorded in DECISIONS.md (ADR-009, ADR-010) and
+SECURITY.md.
+
+---
+
+## 10. Message types in use
+
+Every message uses the envelope in section 3. Fields shown are the payload.
+
+| Type | Direction | Payload |
+|---|---|---|
+| `PAIR_REQUEST` | phone → PC | `deviceId`, `deviceName`, `proof` (base64 `HMAC-SHA256(code, certFingerprint)`) |
+| `PAIR_RESPONSE` | PC → phone | success: `success: true`, `deviceId`, `sharedSecret` (base64), `pcName`; failure: `success: false`, `error` |
+| `AUTHENTICATE` | phone → PC | `deviceId`, `nonce`, `timestamp`, `proof` (base64 `HMAC-SHA256(secret, deviceId\|nonce\|timestamp)`) |
+| `AUTH_RESULT` | PC → phone | `success`, `error` |
+| `NOTIFICATION` | phone → PC | the payload in section 4 |
+| `NOTIFICATION_REMOVED` | phone → PC | `notificationId` (accepted, but the PC does not act on it, see ADR-008) |
+
+The certificate fingerprint is the uppercase hex SHA-256 of the PC's certificate. The `AUTHENTICATE`
+timestamp must be within 5 minutes of the PC's clock, so both devices need roughly correct time.

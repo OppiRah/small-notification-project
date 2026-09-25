@@ -119,6 +119,41 @@ If transport encryption is provided by the selected protocol, document exactly w
 
 ---
 
+## Implementation status (v0.1.0)
+
+How the requirements above are met by the shipped code. Pairing and authentication are specified in
+DECISIONS.md (ADR-009, ADR-010).
+
+| Requirement | How it is met |
+|---|---|
+| 1. No cloud | Phone connects directly to the PC over the LAN. No server, account or analytics exist. |
+| 2. Authentication | Every connection must complete `AUTHENTICATE` (HMAC-SHA256 with a per-device secret, 5-minute timestamp window) before any notification is accepted. Unpairing on the PC revokes the device immediately. |
+| 3. Least exposure | The receiver listens on all interfaces on port 7787 (the phone must be able to reach it); nothing is accepted without pairing/authentication. Windows Firewall asks on first launch; allow Private networks only (Public only if you use a phone hotspot, see README). |
+| 4. No content in logs | Android logs metadata only (package, category, key). The Windows Developer tab logs message type and package, never title or body. Neither logs secrets. |
+| 5. No persistence | Notification text lives in memory only. Persisted: pairing data and settings. |
+| 6. Input validation | Every message is validated by `ProtocolDecoder` (version, type, sizes, arrays, timestamps, auth state) and size-capped (64 KB pre-auth, 2 MB after). Icons must be a small, PNG-signed image with sane dimensions. |
+| 7. Cryptography | Only platform primitives: TLS 1.2/1.3, HMAC-SHA256, SHA-256, `RandomNumberGenerator` / `SecureRandom`. Comparisons are constant-time. |
+
+### Known limitations (accepted for a personal LAN tool)
+
+- **Pairing code strength.** The 6-digit code is single-use and dies after 5 wrong attempts, which
+  stops guessing. An attacker who is actively in the middle *during* the 2-minute pairing window can
+  still recover the code offline (see DECISIONS.md, ADR-009). Pair on a network you trust.
+- **Secrets are not encrypted at rest.** The PC's TLS private key and paired-device secrets sit in
+  `%LOCALAPPDATA%\NotificationBridge` (protected by your Windows user account); the phone's copy is in
+  the app's private storage (`allowBackup` is off). Malware running as you could read them.
+- **No replay cache for `AUTHENTICATE`.** Nonces are not remembered. This is acceptable because the
+  proof only ever travels inside the pinned TLS channel, and it is bounded by the 5-minute window.
+- **Unauthenticated connections are not time-limited.** A device on your LAN can open a connection
+  and hold it idle (it can never deliver a notification). This is a nuisance-level denial of service
+  only; the "client connected" indicator also counts such connections.
+- **Clock skew.** If the phone's and PC's clocks differ by more than 5 minutes, authentication fails.
+  Leave both on automatic time.
+- **Distribution.** The Windows installer is unsigned (SmartScreen warns) and the APK is signed with
+  a self-generated key, not distributed via the Play Store.
+
+---
+
 ## Privacy boundary
 
 The application may receive:

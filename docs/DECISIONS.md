@@ -166,6 +166,23 @@ Port/discovery is manual for MVP: the user reads the PC's port (7787, fixed) and
 the Windows app and enters them on the phone. No automatic discovery (mDNS/broadcast) exists yet;
 that remains a genuinely unresolved future decision, not blocking Phase 5's security goal.
 
+### Hardening and limits (release audit)
+
+A 6-digit code has only 1,000,000 values, so the PC now treats it as single-use (a successful
+pairing consumes it) and discards it after 5 wrong proofs, after which the user starts a new
+pairing. Without this, anyone on the LAN could guess the code within its 2-minute window.
+
+The limit that remains, accepted as a tradeoff for a personal LAN tool: the proof is
+`HMAC(code, fingerprint)`, so an attacker who is *actively in the middle during the 2-minute
+pairing window* can recover the code offline from the proof the phone sends them (1,000,000
+candidates is trivial to brute-force), then pair with the real PC on the phone's behalf. The code
+therefore stops casual and passive attackers, not a determined active man-in-the-middle at the
+moment of pairing. Pair on a network you trust. A pairing that was clean is then protected by
+certificate pinning against later interception; but if a pairing was intercepted, the phone pinned
+the attacker's certificate, so re-pair on a trusted network if you ever doubt one. Closing this
+fully would need a PAKE or a fingerprint comparison the user checks by eye; it was judged out of
+scope for v0.1.0.
+
 ---
 
 ## ADR-010 — Reconnect authentication: HMAC-SHA256 challenge-response
@@ -257,17 +274,31 @@ proven), **Not yet tested**.
 
 ---
 
+## Decisions settled during implementation
+
+Items that were open at the start of the project and are now decided by what was built:
+
+- **Android minimum SDK:** 29 (Android 10), set in `android/app/build.gradle.kts`.
+- **Windows minimum version:** 64-bit Windows 10 (1607 or later) or Windows 11, the floor set by the
+  .NET 9 runtime that the installer bundles. Only Windows 11 has been tested.
+- **Notification update/removal semantics:** every notification message is its own bubble and
+  `NOTIFICATION_REMOVED` is ignored for display (ADR-008).
+- **Ongoing notifications:** not forwarded. The listener skips `FLAG_ONGOING_EVENT` (music players,
+  downloads), along with group summaries and `CATEGORY_SERVICE` notifications.
+- **Silent notifications:** mirrored like any other. The bridge does not look at alert sound or
+  importance.
+- **Maximum bubble count:** a user setting (slider), default 5; the oldest bubble is evicted when
+  the cap is exceeded.
+- **Click behavior:** none. The overlay is click-through and bubbles do nothing when clicked;
+  click actions are a Phase 9 idea that needs its own security review.
+- **Hover-to-pause:** built (Phase 8). The dismissal timer stops while the cursor is over a bubble
+  and restarts with the full duration on leave.
+- **Automatic endpoint discovery:** deliberately not built. Manual host:port entry is the accepted
+  behavior per ADR-009, and the phone stores the address at pairing time. Worth revisiting (mDNS)
+  only if changing networks becomes a real annoyance.
+
 ## Unresolved decisions
 
-The implementation team must explicitly decide:
-
-- automatic endpoint discovery strategy (mDNS/broadcast); manual host:port entry is the accepted
-  MVP behavior per ADR-009
-- Android minimum SDK
-- Windows minimum version
-- notification update/removal semantics
-- whether ongoing notifications should be forwarded
-- behavior for silent notifications
-- maximum bubble count
-- click behavior
-- whether hover-to-pause belongs in MVP
+None that block v0.1.0. Future features (per-app filters, history, click/reply actions, grouping,
+sounds, themes, automatic discovery) are optional Phase 9 work and each needs its own
+privacy/security review.

@@ -318,6 +318,10 @@ ERROR
 
 The exact set can be reduced if the implementation discovers that some are unnecessary.
 
+**As built:** only `PAIR_REQUEST`, `PAIR_RESPONSE`, `AUTHENTICATE`, `AUTH_RESULT`, `NOTIFICATION` and
+`NOTIFICATION_REMOVED` are sent (see PROTOCOL.md section 10). `HELLO`, `HEARTBEAT`, `ACK` and `ERROR`
+were not needed: liveness uses WebSocket ping/pong, and rejected input is dropped silently.
+
 Do not add protocol messages simply because they sound architecturally complete.
 
 ---
@@ -373,6 +377,11 @@ Potential behavior:
 - removed notification → optionally remove its bubble
 
 Do not assume package name alone uniquely identifies a notification.
+
+**As built (DECISIONS.md, ADR-008):** none of the update/remove behavior above is used. Android
+reuses one notification ID per conversation, so update-in-place would hide earlier messages. Every
+notification message becomes its own bubble, keyed by the message's own ID, and
+`NOTIFICATION_REMOVED` is ignored for display.
 
 ---
 
@@ -474,6 +483,11 @@ phone-notification-bridge/
 ```
 
 The exact project layout depends on the selected Windows framework and Android architecture.
+
+**As built:** `windows/src` is organised as `Display/`, `Domain/`, `Notifications/`, `Protocol/`,
+`Security/`, `Settings/`, `Transport/` and `UI/`; the Windows installer is in `windows/installer/`.
+The Android app is a single `app` module in package `com.notificationbridge.app`. The markdown docs
+live in `docs/` (README stays at the root).
 
 ---
 

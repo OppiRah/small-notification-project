@@ -160,8 +160,10 @@ public partial class MainWindow : Window
         {
             if (result.Status == DecodeStatus.Ok && result.Message is { } msg)
             {
+                // Metadata only: notification text is private and must not accumulate in the log
+                // (SECURITY.md #4).
                 var summary = msg.Notification is { } n
-                    ? $"{msg.MessageType} package={n.PackageName} title=\"{n.Title}\" body=\"{n.Body}\""
+                    ? $"{msg.MessageType} package={n.PackageName}"
                     : msg.MessageType;
                 LogList.Items.Add($"[OK] {summary}");
             }
@@ -190,9 +192,13 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() => _notificationManager.HandleDecoded(msg));
     }
 
-    private async void SendValidButton_Click(object sender, RoutedEventArgs e)
+    // Shown locally rather than sent over the socket: since Phase 5 only an authenticated (paired)
+    // phone may deliver notifications, so a synthetic unauthenticated client would be rejected.
+    private void SendValidButton_Click(object sender, RoutedEventArgs e)
     {
-        await SyntheticTestClient.SendAsync(Port, SyntheticMessages.ValidNotification());
+        var result = ProtocolDecoder.Decode(SyntheticMessages.ValidNotification());
+        if (result.Message is { } msg)
+            _notificationManager.HandleDecoded(msg);
     }
 
     private async void SendMalformedButton_Click(object sender, RoutedEventArgs e)

@@ -79,6 +79,11 @@ verbose logging.
 - debug logging
 - log redaction
 
+*As built:* there is no user-facing debug-logging switch. Instead, notification text is never
+logged at all: the Android app logs metadata only (a code-level `BridgeLogger.verbose` flag exists,
+defaults to off, and has no caller), and the Windows Developer tab logs only message type and
+package name.
+
 **Startup**
 
 - start with Windows

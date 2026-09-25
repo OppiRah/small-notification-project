@@ -45,6 +45,16 @@ Then turn on notification access for **Notification Bridge**: tap **Open notific
 
 Pairing happens once and survives restarts. Remove a phone with **Unpair selected** on the PC. There is no automatic discovery, and the phone remembers the PC's address, so if the PC's IP address changes (or it moves to a different network) pair again.
 
+### Known limitations
+
+- **Manual pairing address.** There is no automatic discovery: the phone remembers the PC's IP address from pairing, so pair again if the PC's address or network changes.
+- **Notifications while disconnected are dropped**, not queued.
+- **One PC per phone.**
+- **Clocks must roughly agree** (within 5 minutes) or authentication fails; leave both devices on automatic time.
+- **Pair on a network you trust.** The pairing code stops casual and passive attackers, not someone actively intercepting traffic during the 2-minute pairing window (see `docs/SECURITY.md`).
+- **The Windows installer is unsigned** (SmartScreen warns) and the APK is signed with a self-generated key, not distributed through the Play Store.
+- The **Developer** tab in the Windows app is for troubleshooting; "Send valid test notification" shows a bubble locally without a phone.
+
 ### Build from source
 
 ```powershell

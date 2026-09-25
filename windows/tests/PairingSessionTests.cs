@@ -39,6 +39,60 @@ public class PairingSessionTests
         Assert.False(session.VerifyProof("fp", proof));
     }
 
+    private static string Proof(string code, string fingerprint) =>
+        Convert.ToBase64String(HMACSHA256.HashData(Encoding.UTF8.GetBytes(code), Encoding.UTF8.GetBytes(fingerprint)));
+
+    [Fact]
+    public void VerifyProof_CodeIsSingleUse()
+    {
+        var session = new PairingSession();
+        var code = session.Start();
+
+        Assert.True(session.VerifyProof("fp", Proof(code, "fp")));
+
+        Assert.False(session.IsActive);
+        Assert.False(session.VerifyProof("fp", Proof(code, "fp")));
+    }
+
+    [Fact]
+    public void VerifyProof_CodeIsDiscardedAfterTooManyWrongProofs()
+    {
+        var session = new PairingSession();
+        var code = session.Start();
+
+        for (var i = 0; i < 5; i++)
+            Assert.False(session.VerifyProof("fp", Proof("not-the-code", "fp")));
+
+        // Even the right proof no longer works: an attacker cannot keep guessing within one window.
+        Assert.False(session.IsActive);
+        Assert.False(session.VerifyProof("fp", Proof(code, "fp")));
+    }
+
+    [Fact]
+    public void VerifyProof_AFewMistypedAttemptsDoNotLockOutTheRealUser()
+    {
+        var session = new PairingSession();
+        var code = session.Start();
+
+        for (var i = 0; i < 4; i++)
+            Assert.False(session.VerifyProof("fp", Proof("not-the-code", "fp")));
+
+        Assert.True(session.VerifyProof("fp", Proof(code, "fp")));
+    }
+
+    [Fact]
+    public void Start_ResetsTheFailedAttemptCount()
+    {
+        var session = new PairingSession();
+        session.Start();
+        for (var i = 0; i < 5; i++)
+            session.VerifyProof("fp", Proof("not-the-code", "fp"));
+
+        var newCode = session.Start();
+
+        Assert.True(session.VerifyProof("fp", Proof(newCode, "fp")));
+    }
+
     [Fact]
     public void Stop_InvalidatesTheSession()
     {

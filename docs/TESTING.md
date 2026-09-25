@@ -163,7 +163,27 @@ Scenario:
 
 ---
 
-## 8. Performance expectations
+## 8. Current status and manual hardware checklist
+
+Automated: 37 Windows tests (`dotnet test windows/tests`) and 18 Android unit tests
+(`gradlew :app:testDebugUnitTest`). Verified by hand on real hardware over home Wi-Fi: pairing,
+authentication, live delivery, hover-to-pause, icons, PC app restart, Wi-Fi off/on, a frozen and
+resumed PC app, a very long notification, installer install/uninstall/reinstall, and the signed APK.
+
+**Not yet verified on hardware** (code paths were reviewed, not run). Run these before relying on
+the app unattended:
+
+| Scenario | How | Expect |
+|---|---|---|
+| PC sleep/wake | Sleep the PC, wake it, send a notification from the phone | Phone reconnects within about a minute; bubble appears; no re-pair |
+| Monitor unplug/replug | Unplug the selected monitor, then plug it back | Overlay moves to the primary monitor, then returns to the chosen one |
+| Phone restart | Restart the phone, unlock it, wait a minute | Transport reconnects by itself; on MIUI you may need to allow autostart |
+| Reduce motion | Windows Settings → Accessibility → Visual effects → Animation effects off | Bubbles appear and disappear without animation |
+| High contrast | Turn on a Windows high-contrast theme | Bubbles use system colors with a solid border and readable text |
+
+---
+
+## 9. Performance expectations
 
 The system is a small utility.
 
