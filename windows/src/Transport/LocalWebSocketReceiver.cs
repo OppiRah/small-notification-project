@@ -24,6 +24,16 @@ public sealed class LocalWebSocketReceiver
 
     private static readonly TimeSpan AuthTimestampWindow = TimeSpan.FromMinutes(5);
 
+    // Pairing/auth messages are tiny, so unauthenticated peers get a small cap. Authenticated
+    // messages are bounded by ProtocolLimits (worst case ~100 expanded lines x 4096 chars).
+    private const int MaxPreAuthMessageBytes = 64 * 1024;
+    private const int MaxAuthenticatedMessageBytes = 2 * 1024 * 1024;
+
+    // Without a ping/pong timeout a phone that silently drops off Wi-Fi (or a PC that sleeps)
+    // leaves a half-open socket that is never detected as dead.
+    private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan KeepAliveTimeout = TimeSpan.FromSeconds(15);
+
     private readonly int _port;
     private readonly X509Certificate2 _certificate;
     private readonly string _certificateFingerprint;
@@ -31,6 +41,7 @@ public sealed class LocalWebSocketReceiver
     private readonly TrustedDeviceStore _trustedDevices;
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
+    private int _activeConnections;
 
     public event Action<string>? MessageReceived;
     public event Action<bool>? ClientConnectionChanged;
@@ -102,8 +113,13 @@ public sealed class LocalWebSocketReceiver
 
         await WriteUpgradeResponseAsync(sslStream, secWebSocketKey, token);
 
-        var socket = WebSocket.CreateFromStream(sslStream, isServer: true, subProtocol: null, keepAliveInterval: TimeSpan.FromSeconds(30));
-        ClientConnectionChanged?.Invoke(true);
+        var socket = WebSocket.CreateFromStream(sslStream, new WebSocketCreationOptions
+        {
+            IsServer = true,
+            KeepAliveInterval = KeepAliveInterval,
+            KeepAliveTimeout = KeepAliveTimeout,
+        });
+        ClientConnectionChanged?.Invoke(Interlocked.Increment(ref _activeConnections) > 0);
 
         var isAuthenticated = false;
 
@@ -113,6 +129,7 @@ public sealed class LocalWebSocketReceiver
             while (socket.State == WebSocketState.Open && !token.IsCancellationRequested)
             {
                 using var messageStream = new MemoryStream();
+                var maxMessageBytes = isAuthenticated ? MaxAuthenticatedMessageBytes : MaxPreAuthMessageBytes;
                 WebSocketReceiveResult result;
                 do
                 {
@@ -121,6 +138,12 @@ public sealed class LocalWebSocketReceiver
                     {
                         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "closing", token);
                         break;
+                    }
+                    if (messageStream.Length + result.Count > maxMessageBytes)
+                    {
+                        // CloseOutputAsync (not CloseAsync): don't wait on a peer that is mid-flood.
+                        await socket.CloseOutputAsync(WebSocketCloseStatus.MessageTooBig, "message too large", token);
+                        return;
                     }
                     messageStream.Write(buffer, 0, result.Count);
                 } while (!result.EndOfMessage);
@@ -139,7 +162,7 @@ public sealed class LocalWebSocketReceiver
         }
         finally
         {
-            ClientConnectionChanged?.Invoke(false);
+            ClientConnectionChanged?.Invoke(Interlocked.Decrement(ref _activeConnections) > 0);
             socket.Dispose();
         }
     }

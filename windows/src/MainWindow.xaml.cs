@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly NotificationManager _notificationManager;
     private readonly OverlayWindow _overlay;
     private readonly DispatcherTimer _pairingStatusTimer;
+    private bool _clientConnected;
 
     public MainWindow()
     {
@@ -50,20 +51,48 @@ public partial class MainWindow : Window
         PopulateSettingsControls();
         RefreshTrustedDevicesList();
         UpdateStatusText(connected: false);
+
+        // Both events fire on background threads. Monitor unplug/rearrange must re-place the
+        // overlay (GetWorkingArea falls back to the primary monitor if the chosen one is gone);
+        // a Wi-Fi change or wake from sleep can change the PC's IP shown in the status text.
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+
         Closing += (_, _) =>
         {
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+            System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
             _receiver.Stop();
             _overlay.Close();
         };
     }
 
-    private void PopulateSettingsControls()
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            RefreshMonitorList();
+            _overlay.ApplySettings();
+        });
+    }
+
+    private void OnNetworkAddressChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() => UpdateStatusText(_clientConnected));
+    }
+
+    private void RefreshMonitorList()
     {
         var monitors = DisplayManager.GetAllMonitors();
         MonitorCombo.ItemsSource = monitors;
         MonitorCombo.SelectedIndex = _settings.MonitorIndex >= 0 && _settings.MonitorIndex < monitors.Count
             ? _settings.MonitorIndex
             : 0;
+    }
+
+    private void PopulateSettingsControls()
+    {
+        RefreshMonitorList();
 
         CornerCombo.SelectedIndex = (int)_settings.Corner;
 
@@ -110,6 +139,7 @@ public partial class MainWindow : Window
 
     private void UpdateStatusText(bool connected)
     {
+        _clientConnected = connected;
         var ip = GetLocalIPv4() ?? "0.0.0.0";
         StatusText.Text = connected
             ? $"Listening on wss://{ip}:{Port}/ws/ (client connected)"

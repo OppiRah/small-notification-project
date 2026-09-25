@@ -6,6 +6,7 @@ import android.os.Looper
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import okhttp3.OkHttpClient
@@ -26,13 +27,26 @@ object TransportClient {
     private const val INITIAL_BACKOFF_MS = 1_000L
     private const val MAX_BACKOFF_MS = 30_000L
 
+    // Without pings OkHttp never notices a half-open connection (Wi-Fi dropped, PC asleep), so
+    // send() would keep "succeeding" into a dead socket. A missed pong fails the connection,
+    // which triggers the normal reconnect path.
+    private const val PING_INTERVAL_SECONDS = 15L
+
     private val handler = Handler(Looper.getMainLooper())
     private val listeners = CopyOnWriteArrayList<(State) -> Unit>()
 
     private var webSocket: WebSocket? = null
     private var backoffMs = INITIAL_BACKOFF_MS
     private var manuallyStopped = true
+
+    // Read from the listener service's binder thread in send(), written from OkHttp threads.
+    @Volatile
     private var authenticated = false
+
+    // Identifies the current connection attempt so callbacks from a superseded socket (e.g. the
+    // old one being cancelled during a restart) can't tear down or reschedule the new one.
+    @Volatile
+    private var generation = 0
 
     @Volatile
     var state: State = State.NOT_PAIRED
@@ -70,11 +84,16 @@ object TransportClient {
     }
 
     private fun connect(pc: TrustedPc) {
+        // start() can be called while a connection already exists (MainActivity and the listener
+        // service both call it); drop the old socket rather than leaking a second live one.
+        val thisGeneration = ++generation
+        webSocket?.cancel()
         setState(State.CONNECTING)
 
         val (socketFactory, trustManager) = TlsTrust.pinnedSocketFactory(pc.certFingerprint)
         val client = OkHttpClient.Builder()
             .sslSocketFactory(socketFactory, trustManager)
+            .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
             // Identity is verified by exact certificate fingerprint pinning above, a stronger
             // guarantee than hostname/CN matching -- the self-signed cert has no SAN for the
             // PC's LAN IP, so default hostname verification would otherwise reject it.
@@ -84,20 +103,24 @@ object TransportClient {
         val request = Request.Builder().url("wss://${pc.host}:${pc.port}/ws/").build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                if (thisGeneration != generation) return
                 setState(State.AUTHENTICATING)
                 sendAuthenticate(webSocket, pc)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                if (thisGeneration != generation) return
                 handleMessage(pc, text)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                if (thisGeneration != generation) return
                 BridgeLogger.w(TAG, "Transport connection failed: ${t.message}")
                 scheduleReconnect(pc)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (thisGeneration != generation) return
                 BridgeLogger.w(TAG, "Transport closed: $reason")
                 scheduleReconnect(pc)
             }
@@ -144,6 +167,9 @@ object TransportClient {
         authenticated = false
         setState(State.DISCONNECTED)
         if (manuallyStopped) return
+        // A failure and the close that follows it (or an auth rejection and its close) both land
+        // here; keep only one reconnect pending.
+        handler.removeCallbacksAndMessages(null)
         handler.postDelayed({ if (!manuallyStopped) connect(pc) }, backoffMs)
         backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
     }
