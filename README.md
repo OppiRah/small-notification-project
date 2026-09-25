@@ -16,6 +16,76 @@ This is intentionally **not** a phone-control platform, AI assistant, cloud serv
 
 ---
 
+## Getting started
+
+Everything stays on your local network. You need a Windows PC and an Android phone (Android 10+) on the same Wi-Fi.
+
+### 1. Install the Windows app
+
+Run `NotificationBridge-Setup-<version>.exe`. It installs for your user only (no administrator prompt) and includes the .NET runtime it needs. To build the installer yourself, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and run:
+
+```powershell
+powershell -File windows\installer\build-installer.ps1    # writes dist\NotificationBridge-Setup-<version>.exe
+```
+
+- The installer is not code-signed, so Windows SmartScreen may warn about an unknown publisher.
+- On first launch Windows Firewall asks whether to allow the app. Allow it on **Private** networks (home Wi-Fi). A phone hotspot is classed as **Public**, so to use one you must also allow the app on Public networks (Windows Security → Firewall → Allow an app).
+- Upgrades keep your pairing and settings. Uninstalling asks whether to delete them too.
+
+### 2. Install the Android app
+
+Build a release APK (see below) and install it: `adb install android\app\build\outputs\apk\release\app-release.apk`.
+
+Then turn on notification access for **Notification Bridge**: tap **Open notification access settings** in the app (or go to Android Settings → Notification access). On Xiaomi/MIUI phones also allow autostart; if notifications still don't arrive, restart the phone once (MIUI sometimes fails to bind the listener until a reboot).
+
+### 3. Pair the phone with the PC
+
+1. On the PC, open the app's **Settings** tab and click **Pair new device**. It shows a 6-digit code (valid for 2 minutes) and the PC's address, like `192.168.1.7:7787`.
+2. In the phone app, enter the **PC IP address**, **PC port** (`7787`) and **Pairing code**, then tap **Pair**.
+
+Pairing happens once and survives restarts. Remove a phone with **Unpair selected** on the PC. There is no automatic discovery, and the phone remembers the PC's address, so if the PC's IP address changes (or it moves to a different network) pair again.
+
+### Build from source
+
+```powershell
+# Windows
+dotnet run --project windows/src
+dotnet test windows/tests
+
+# Android (set JAVA_HOME to a JDK 17+, e.g. Android Studio's bundled JBR)
+cd android
+.\gradlew.bat :app:installDebug          # debug build onto a connected phone
+.\gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:assembleRelease       # release APK (signed if the keystore below exists)
+```
+
+**Signing a release build.** Create a keystore with `keytool`, keep it **outside** the repository, and put its details in `android/keystore.properties` (gitignored):
+
+```properties
+storeFile=C:/path/to/release.jks
+storePassword=...
+keyAlias=...
+keyPassword=...
+```
+
+Back up the keystore and its password: if you lose them, updated releases can't be installed over an existing install. Debug and release builds are signed with different keys, so moving a phone from one to the other means uninstalling first (you will need to grant notification access and pair again).
+
+### Documentation
+
+Design and planning documents live in [`docs/`](docs):
+
+| File | What it covers |
+|---|---|
+| `PRODUCT.md`, `REQUIREMENTS.md` | What the app should do and the settings it exposes |
+| `ARCHITECTURE.md`, `PROTOCOL.md` | Components, and the wire protocol between phone and PC |
+| `SECURITY.md` | Threat model, pairing and authentication rules |
+| `UI_UX.md` | Bubble and monitor behavior |
+| `DECISIONS.md` | Architecture decision records (ADRs) and unresolved questions |
+| `ROADMAP.md`, `DEVELOPMENT.md`, `TESTING.md` | Phases, engineering guidance, test plan |
+| `SESSION_SUMMARY.md` | What has been built, tested, broken and fixed so far |
+
+---
+
 ## Product definition
 
 ### Primary requirements
