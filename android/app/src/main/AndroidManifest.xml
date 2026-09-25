@@ -3,6 +3,17 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android 11+ hides other installed apps from us by default, so without this the app name and
+         launcher icon lookups fail for every non-system app (the bubble would show the raw package
+         name and no icon). Launcher apps are exactly the ones whose icons we want; this is much
+         narrower than QUERY_ALL_PACKAGES. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:label="Notification Bridge (Dev)"

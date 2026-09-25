@@ -10,5 +10,5 @@
         ResizeMode="NoResize"
         Focusable="False"
         Width="340" Height="600">
-    <StackPanel x:Name="BubbleStack" Margin="16" VerticalAlignment="Top"/>
+    <StackPanel x:Name="BubbleStack" Margin="0,10" VerticalAlignment="Top"/>
 </Window>

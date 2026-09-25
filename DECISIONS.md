@@ -213,6 +213,14 @@ ever matters, sending each icon once and caching it on the PC is the natural nex
   more lenient than over-limit text, which the PC rejects.
 - Only an authenticated phone can send an icon (unauthenticated connections never reach the
   notification path), and the PC decodes only PNG data.
+- Android 11+ hides other installed apps from an app by default, and holding notification-listener
+  access does not change that. Without a declaration, both the icon lookup and the existing app-name
+  lookup fail for every non-system app (found on real hardware: a Messenger bubble showed
+  `com.facebook.orca` and no icon, while a system-package test notification worked). The manifest
+  therefore declares a `<queries>` entry for launcher apps (`MAIN`/`LAUNCHER`), which makes exactly
+  the apps a user sees on their home screen visible. This is deliberately narrower than
+  `QUERY_ALL_PACKAGES`, which Google Play restricts. It lets the app know which launcher apps are
+  installed, on top of the notification content it already reads.
 
 ---
 

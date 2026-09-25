@@ -26,6 +26,7 @@ public partial class OverlayWindow : Window
     private const uint SwpShowWindow = 0x0040;
 
     private const int OverlayWidthPixels = 340;
+    private const double SlideDistance = 24;
 
     [DllImport("user32.dll")]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -110,18 +111,56 @@ public partial class OverlayWindow : Window
         BubbleStack.VerticalAlignment = isTop ? VerticalAlignment.Top : VerticalAlignment.Bottom;
     }
 
+    // The user's own setting AND Windows' "Animation effects" switch (Settings > Accessibility >
+    // Visual effects): if either is off, nothing animates.
+    private bool ShouldAnimate => _settings.AnimationEnabled && SystemParameters.ClientAreaAnimation;
+
     public void Add(VisibleNotification notification)
     {
-        var bubble = new BubbleControl(notification.Id, notification.AppName, notification.Title, notification.Body, notification.IconPng, _settings.AnimationEnabled);
+        var isTop = _settings.Corner is BubbleCorner.TopLeft or BubbleCorner.TopRight;
+        var isLeft = _settings.Corner is BubbleCorner.TopLeft or BubbleCorner.BottomLeft;
+
+        // Slide in from the screen edge the stack is anchored to.
+        var bubble = new BubbleControl(notification.Id, notification.AppName, notification.Title, notification.Body,
+            notification.IconPng, ShouldAnimate, isLeft ? -SlideDistance : SlideDistance);
         _bubbles[notification.Id] = bubble;
 
-        var isTop = _settings.Corner is BubbleCorner.TopLeft or BubbleCorner.TopRight;
-        if (isTop)
-            BubbleStack.Children.Insert(0, bubble);
-        else
-            BubbleStack.Children.Add(bubble);
+        Reflow(() =>
+        {
+            if (isTop)
+                BubbleStack.Children.Insert(0, bubble);
+            else
+                BubbleStack.Children.Add(bubble);
+        });
 
         _hoverTimer.Start();
+    }
+
+    // Runs a change to the stack, then eases every bubble that was already there from its old
+    // position to its new one instead of letting it jump.
+    private void Reflow(Action change)
+    {
+        if (!ShouldAnimate)
+        {
+            change();
+            return;
+        }
+
+        var before = BubbleStack.Children.OfType<BubbleControl>()
+            .ToDictionary(b => b, b => b.TranslatePoint(new Point(0, 0), BubbleStack).Y);
+
+        change();
+        BubbleStack.UpdateLayout();
+
+        foreach (var (bubble, oldY) in before)
+        {
+            if (!BubbleStack.Children.Contains(bubble))
+                continue;
+
+            var delta = oldY - bubble.TranslatePoint(new Point(0, 0), BubbleStack).Y;
+            if (Math.Abs(delta) > 0.5)
+                bubble.AnimateShift(delta);
+        }
     }
 
     public void Remove(string id)
@@ -133,6 +172,6 @@ public partial class OverlayWindow : Window
         _hovered.Remove(id);
         if (_bubbles.Count == 0)
             _hoverTimer.Stop();
-        bubble.FadeOutAndRemove(_settings.AnimationEnabled, () => BubbleStack.Children.Remove(bubble));
+        bubble.FadeOutAndRemove(ShouldAnimate, () => Reflow(() => BubbleStack.Children.Remove(bubble)));
     }
 }
