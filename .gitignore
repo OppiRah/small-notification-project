@@ -1,7 +1,36 @@
-android/local.properties
+# ---------------------------------------------------------------------------
+# SECRETS AND SIGNING MATERIAL -- never commit these
+# ---------------------------------------------------------------------------
+# Android release signing: losing or leaking these compromises app updates.
 android/keystore.properties
 *.jks
 *.keystore
+
+# Private keys and certificates (the PC's TLS certificate is a .pfx).
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Pairing state holds the shared secrets of paired phones. The app stores it under
+# %LOCALAPPDATA%\NotificationBridge, but keep it out of the repo if it is ever copied in.
+trusted-devices.json
+
+# Environment/credential files
+.env
+.env.*
+
+# ---------------------------------------------------------------------------
+# MACHINE-LOCAL FILES (paths, IDE and tool state)
+# ---------------------------------------------------------------------------
+android/local.properties
+.idea/
+.vs/
+.claude/settings.local.json
+
+# ---------------------------------------------------------------------------
+# BUILD OUTPUT
+# ---------------------------------------------------------------------------
 android/.gradle/
 android/build/
 android/app/build/
