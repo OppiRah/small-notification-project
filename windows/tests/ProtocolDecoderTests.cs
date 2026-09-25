@@ -261,6 +261,40 @@ public class ProtocolDecoderTests
     }
 
     [Fact]
+    public void BodyExactlyAtLimit_IsAccepted()
+    {
+        var json = ValidNotificationJson().Replace("\"World\"", $"\"{new string('a', ProtocolLimits.BodyMax)}\"");
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.Equal(ProtocolLimits.BodyMax, result.Message!.Notification!.Body!.Length);
+    }
+
+    [Fact]
+    public void BodyOverLimit_IsRejected()
+    {
+        var json = ValidNotificationJson().Replace("\"World\"", $"\"{new string('a', ProtocolLimits.BodyMax + 1)}\"");
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.ValidationFailed, result.Status);
+        Assert.Contains(result.Errors, e => e.Contains("body exceeds"));
+    }
+
+    [Fact]
+    public void TooManyExpandedLines_IsRejected()
+    {
+        var lines = string.Join(",", Enumerable.Repeat("\"x\"", ProtocolLimits.ExpandedLinesMax + 1));
+        var json = ValidNotificationJson().Replace("\"expandedLines\": []", $"\"expandedLines\": [{lines}]");
+
+        var result = ProtocolDecoder.Decode(json);
+
+        Assert.Equal(DecodeStatus.ValidationFailed, result.Status);
+        Assert.Contains(result.Errors, e => e.Contains("expandedLines exceeds"));
+    }
+
+    [Fact]
     public void InvalidTimestamp_IsRejected()
     {
         var json = """

@@ -13,14 +13,22 @@ object ProtocolMessages {
 
     private const val PROTOCOL_VERSION = 1
 
+    // Mirror the PC's ProtocolLimits (PROTOCOL.md section 6). The PC rejects a whole notification
+    // that exceeds any of them, so long text is clipped here instead of being lost entirely.
+    private const val APP_NAME_MAX = 256
+    private const val TITLE_MAX = 1024
+    private const val BODY_MAX = 8192
+    private const val EXPANDED_LINES_MAX = 100
+    private const val EXPANDED_LINE_MAX = 4096
+
     fun notificationPosted(notification: NormalizedNotification): String {
         val payload = JSONObject().apply {
             put("notificationId", notification.key)
             put("packageName", notification.packageName)
-            put("appName", notification.appName)
-            put("title", notification.title)
-            put("body", notification.bigText ?: notification.body)
-            put("expandedLines", JSONArray(notification.expandedLines))
+            put("appName", clip(notification.appName, APP_NAME_MAX))
+            put("title", clip(notification.title, TITLE_MAX))
+            put("body", clip(notification.bigText ?: notification.body, BODY_MAX))
+            put("expandedLines", JSONArray(notification.expandedLines.take(EXPANDED_LINES_MAX).map { clip(it, EXPANDED_LINE_MAX) }))
             put("summary", notification.summary)
             put("timestamp", isoTimestamp(notification.timestamp))
             put("category", notification.category)
@@ -55,6 +63,9 @@ object ProtocolMessages {
     }
 
     fun nowIsoTimestamp(): String = isoTimestamp(System.currentTimeMillis())
+
+    private fun clip(text: String?, max: Int): String? =
+        if (text == null || text.length <= max) text else text.take(max - 1) + "…"
 
     private fun envelope(messageType: String, payload: JSONObject): String {
         return JSONObject().apply {

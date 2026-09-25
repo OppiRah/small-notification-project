@@ -34,6 +34,8 @@ public sealed class LocalWebSocketReceiver
     private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan KeepAliveTimeout = TimeSpan.FromSeconds(15);
 
+    private static readonly TimeSpan AcceptRetryDelay = TimeSpan.FromMilliseconds(250);
+
     private readonly int _port;
     private readonly X509Certificate2 _certificate;
     private readonly string _certificateFingerprint;
@@ -82,6 +84,8 @@ public sealed class LocalWebSocketReceiver
             catch (Exception)
             {
                 if (token.IsCancellationRequested) return;
+                // Back off briefly so a persistently failing listener can't spin this loop at 100% CPU.
+                await Task.Delay(AcceptRetryDelay, CancellationToken.None);
                 continue;
             }
 

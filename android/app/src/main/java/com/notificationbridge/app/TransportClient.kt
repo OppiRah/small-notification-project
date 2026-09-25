@@ -64,6 +64,9 @@ object TransportClient {
 
         manuallyStopped = false
         backoffMs = INITIAL_BACKOFF_MS
+        // A reconnect queued for a previously paired PC holds that PC's address; left alone it
+        // would fire later, cancel this new connection, and keep retrying the stale address.
+        handler.removeCallbacksAndMessages(null)
         connect(pc)
     }
 

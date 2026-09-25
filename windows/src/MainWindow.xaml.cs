@@ -16,6 +16,7 @@ namespace NotificationBridge.Windows;
 public partial class MainWindow : Window
 {
     private const int Port = 7787;
+    private const int MaxLogEntries = 500;
     private readonly AppSettings _settings;
     private readonly PairingSession _pairingSession = new();
     private readonly TrustedDeviceStore _trustedDevices = new();
@@ -163,6 +164,10 @@ public partial class MainWindow : Window
             {
                 LogList.Items.Add($"[REJECTED:{result.Status}] {string.Join("; ", result.Errors)}");
             }
+
+            // The Developer log would otherwise grow for as long as the app stays running.
+            while (LogList.Items.Count > MaxLogEntries)
+                LogList.Items.RemoveAt(0);
 
             if (LogList.Items.Count > 0)
                 LogList.ScrollIntoView(LogList.Items[^1]);
