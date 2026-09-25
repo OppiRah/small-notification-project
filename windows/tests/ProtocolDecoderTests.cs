@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.Text;
 using NotificationBridge.Windows.Protocol;
 using Xunit;
 
@@ -292,6 +294,72 @@ public class ProtocolDecoderTests
 
         Assert.Equal(DecodeStatus.ValidationFailed, result.Status);
         Assert.Contains(result.Errors, e => e.Contains("expandedLines exceeds"));
+    }
+
+    // Minimal PNG prefix: signature + IHDR length/type + width/height. The decoder only inspects
+    // these bytes; pixel decoding is left to the UI layer.
+    private static string PngHeaderBase64(int width, int height)
+    {
+        var bytes = new byte[33];
+        new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }.CopyTo(bytes, 0);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(8), 13);
+        Encoding.ASCII.GetBytes("IHDR").CopyTo(bytes, 12);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(16), width);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(20), height);
+        return Convert.ToBase64String(bytes);
+    }
+
+    private static string WithIcon(string iconValue) =>
+        ValidNotificationJson().Replace("\"category\": \"message\"", $"\"category\": \"message\", \"iconPng\": \"{iconValue}\"");
+
+    [Fact]
+    public void NotificationWithoutIcon_HasNoIcon()
+    {
+        var result = ProtocolDecoder.Decode(ValidNotificationJson());
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.Null(result.Message!.Notification!.IconPng);
+    }
+
+    [Fact]
+    public void ValidIcon_IsDecoded()
+    {
+        var result = ProtocolDecoder.Decode(WithIcon(PngHeaderBase64(96, 96)));
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.NotNull(result.Message!.Notification!.IconPng);
+    }
+
+    // An icon must never cost the user the notification itself, so an unusable icon is dropped
+    // rather than failing validation (unlike over-limit text).
+    [Theory]
+    [InlineData("not base64 at all!!!")]
+    [InlineData("aGVsbG8gd29ybGQsIHRoaXMgaXMgbm90IGEgcG5nIGZpbGUgYXQgYWxs")]
+    public void UnusableIcon_IsDroppedButNotificationAccepted(string iconValue)
+    {
+        var result = ProtocolDecoder.Decode(WithIcon(iconValue));
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.Null(result.Message!.Notification!.IconPng);
+        Assert.Equal("Hello", result.Message.Notification.Title);
+    }
+
+    [Fact]
+    public void IconWithOversizedDimensions_IsDroppedButNotificationAccepted()
+    {
+        var result = ProtocolDecoder.Decode(WithIcon(PngHeaderBase64(5000, 5000)));
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.Null(result.Message!.Notification!.IconPng);
+    }
+
+    [Fact]
+    public void IconLongerThanLimit_IsDroppedButNotificationAccepted()
+    {
+        var result = ProtocolDecoder.Decode(WithIcon(new string('A', ProtocolLimits.IconBase64Max + 4)));
+
+        Assert.Equal(DecodeStatus.Ok, result.Status);
+        Assert.Null(result.Message!.Notification!.IconPng);
     }
 
     [Fact]

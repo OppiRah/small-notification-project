@@ -9,5 +9,6 @@ public sealed record NotificationPayload(
     List<string>? ExpandedLines,
     string? Summary,
     string? Timestamp,
-    string? Category
+    string? Category,
+    byte[]? IconPng = null
 );

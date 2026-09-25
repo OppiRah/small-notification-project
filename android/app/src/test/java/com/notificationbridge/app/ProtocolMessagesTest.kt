@@ -38,6 +38,20 @@ class ProtocolMessagesTest {
     }
 
     @Test
+    fun `icon is sent when provided`() {
+        val json = JSONObject(ProtocolMessages.notificationPosted(notification(), "QUJD"))
+
+        assertEquals("QUJD", json.getJSONObject("payload").getString("iconPng"))
+    }
+
+    @Test
+    fun `icon is omitted when unavailable`() {
+        val json = JSONObject(ProtocolMessages.notificationPosted(notification(), null))
+
+        assertTrue(!json.getJSONObject("payload").has("iconPng"))
+    }
+
+    @Test
     fun `long body is clipped to the protocol limit`() {
         val payload = payloadOf(notification(bigText = "a".repeat(20_000)))
 

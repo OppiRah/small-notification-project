@@ -187,6 +187,35 @@ immediately revokes it, since future `AUTHENTICATE` attempts will fail the secre
 
 ---
 
+## ADR-011 — Notification icons: launcher icon as a base64 PNG in every notification
+
+### Decision
+
+The phone renders the posting app's **launcher icon** (via `PackageManager`, not the notification's
+own monochrome small icon) as a 96x96 PNG and sends it base64-encoded in an optional `iconPng`
+field of every `NOTIFICATION` payload. Icons are cached per package on the phone so each is
+rendered once. The PC shows it beside the bubble text.
+
+### Reason
+
+The launcher icon is what the user recognises (the Messenger logo), and looking it up by package
+name keeps the design app-agnostic per ADR-003. Small notification icons are usually white
+silhouettes that read poorly on a dark bubble. Sending it with every notification (roughly 5-10 KB
+over a LAN) avoids adding a second message type and a PC-side cache/request protocol; if bandwidth
+ever matters, sending each icon once and caching it on the PC is the natural next step.
+
+### Consequence
+
+- The field is optional and additive, so `protocolVersion` stays 1.
+- An icon must never cost the user the notification: the phone drops an icon over 64 KB, and the
+  PC ignores an icon that is not a PNG, is over 64 KB of base64, or declares dimensions above
+  256x256 (a guard against decompression bombs reaching the image decoder). This is deliberately
+  more lenient than over-limit text, which the PC rejects.
+- Only an authenticated phone can send an icon (unauthenticated connections never reach the
+  notification path), and the PC decodes only PNG data.
+
+---
+
 ## Network path findings (Phase 5 real-device testing)
 
 Status legend: **Confirmed** (directly tested), **Likely** (strong evidence, not exhaustively
@@ -228,7 +257,6 @@ The implementation team must explicitly decide:
   MVP behavior per ADR-009
 - Android minimum SDK
 - Windows minimum version
-- icon transfer format
 - notification update/removal semantics
 - whether ongoing notifications should be forwarded
 - behavior for silent notifications

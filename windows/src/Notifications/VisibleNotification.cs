@@ -7,4 +7,5 @@ public sealed class VisibleNotification
     public string? AppName { get; init; }
     public string? Title { get; init; }
     public string? Body { get; init; }
+    public byte[]? IconPng { get; init; }
 }

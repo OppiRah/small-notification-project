@@ -86,11 +86,18 @@ Conceptual:
   ],
   "summary": null,
   "timestamp": "2026-09-20T10:00:00Z",
-  "category": "message"
+  "category": "message",
+  "iconPng": "<base64 PNG, optional>"
 }
 ```
 
 Optional fields should be omitted or explicitly null according to the final schema convention.
+
+`iconPng` is the posting app's launcher icon, rendered by the phone as a 96x96 PNG and sent with
+every notification (ADR-011). It is optional and additive, so `protocolVersion` stays 1. The PC
+accepts it only if it is at most 64 KB of base64, decodes to a PNG signature, and declares
+dimensions no larger than 256x256. An icon that fails any of these is ignored; the notification
+itself is still shown.
 
 ---
 

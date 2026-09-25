@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using NotificationBridge.Windows.Domain;
 
@@ -33,6 +34,8 @@ public static class ProtocolLimits
     public const int BodyMax = 8192;
     public const int ExpandedLinesMax = 100;
     public const int ExpandedLineMax = 4096;
+    public const int IconBase64Max = 64 * 1024;
+    public const int IconMaxDimension = 256;
 }
 
 public static class ProtocolDecoder
@@ -222,9 +225,41 @@ public static class ProtocolDecoder
             expandedLines,
             GetString(payload, "summary"),
             GetString(payload, "timestamp"),
-            GetString(payload, "category"));
+            GetString(payload, "category"),
+            DecodeIcon(GetString(payload, "iconPng")));
 
         return (result, errors);
+    }
+
+    // Unlike over-limit text, an unusable icon never fails validation: the notification is still
+    // shown, just without an icon. Only a small, PNG-signed image with sane dimensions is passed on,
+    // so a malformed or decompression-bomb image never reaches the UI's image decoder.
+    private static byte[]? DecodeIcon(string? base64)
+    {
+        if (string.IsNullOrEmpty(base64) || base64.Length > ProtocolLimits.IconBase64Max)
+            return null;
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(base64);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+
+        // 8-byte PNG signature, then the IHDR chunk: 4-byte length, "IHDR", width, height (big-endian).
+        ReadOnlySpan<byte> pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        if (bytes.Length < 24 || !bytes.AsSpan(0, 8).SequenceEqual(pngSignature))
+            return null;
+
+        var width = BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(16, 4));
+        var height = BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(20, 4));
+        if (width < 1 || height < 1 || width > ProtocolLimits.IconMaxDimension || height > ProtocolLimits.IconMaxDimension)
+            return null;
+
+        return bytes;
     }
 
     private static string? GetString(JsonElement obj, string property) =>

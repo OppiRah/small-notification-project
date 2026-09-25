@@ -54,7 +54,9 @@ class NotificationBridgeListenerService : NotificationListenerService() {
 
         BridgeLogger.i(TAG, "Notification posted package=${normalized.packageName} category=${normalized.category} key=${normalized.key}")
         NotificationRepository.upsert(normalized)
-        TransportClient.send(ProtocolMessages.notificationPosted(normalized))
+        TransportClient.send(
+            ProtocolMessages.notificationPosted(normalized, AppIconProvider.pngBase64(applicationContext, sbn.packageName)),
+        )
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {

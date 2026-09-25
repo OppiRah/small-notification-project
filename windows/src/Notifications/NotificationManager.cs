@@ -43,6 +43,7 @@ public sealed class NotificationManager
             AppName = payload.AppName,
             Title = payload.Title,
             Body = payload.Body,
+            IconPng = payload.IconPng,
         };
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_settings.BubbleDurationSeconds) };

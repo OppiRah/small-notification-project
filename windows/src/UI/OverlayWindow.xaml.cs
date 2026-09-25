@@ -112,7 +112,7 @@ public partial class OverlayWindow : Window
 
     public void Add(VisibleNotification notification)
     {
-        var bubble = new BubbleControl(notification.Id, notification.AppName, notification.Title, notification.Body, _settings.AnimationEnabled);
+        var bubble = new BubbleControl(notification.Id, notification.AppName, notification.Title, notification.Body, notification.IconPng, _settings.AnimationEnabled);
         _bubbles[notification.Id] = bubble;
 
         var isTop = _settings.Corner is BubbleCorner.TopLeft or BubbleCorner.TopRight;

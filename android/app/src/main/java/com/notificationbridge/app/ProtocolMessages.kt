@@ -21,7 +21,7 @@ object ProtocolMessages {
     private const val EXPANDED_LINES_MAX = 100
     private const val EXPANDED_LINE_MAX = 4096
 
-    fun notificationPosted(notification: NormalizedNotification): String {
+    fun notificationPosted(notification: NormalizedNotification, iconPngBase64: String? = null): String {
         val payload = JSONObject().apply {
             put("notificationId", notification.key)
             put("packageName", notification.packageName)
@@ -32,6 +32,7 @@ object ProtocolMessages {
             put("summary", notification.summary)
             put("timestamp", isoTimestamp(notification.timestamp))
             put("category", notification.category)
+            iconPngBase64?.let { put("iconPng", it) }
         }
         return envelope("NOTIFICATION", payload)
     }
