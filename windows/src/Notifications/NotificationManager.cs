@@ -54,6 +54,20 @@ public sealed class NotificationManager
         NotificationAdded?.Invoke(entry);
     }
 
+    // Hover-to-pause (UI_UX.md section 1): the dismissal timer stops while the cursor is over a
+    // bubble and restarts with the full duration once it leaves, so there is time to finish reading.
+    public void Pause(string bubbleId)
+    {
+        if (_timers.TryGetValue(bubbleId, out var timer))
+            timer.Stop();
+    }
+
+    public void Resume(string bubbleId)
+    {
+        if (_timers.TryGetValue(bubbleId, out var timer))
+            timer.Start();
+    }
+
     private void Remove(string bubbleId)
     {
         if (!_timers.TryGetValue(bubbleId, out var timer))

@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Threading;
 using NotificationBridge.Windows.Display;
 using NotificationBridge.Windows.Notifications;
 using NotificationBridge.Windows.Settings;
@@ -34,13 +36,51 @@ public partial class OverlayWindow : Window
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out NativePoint point);
+
     private readonly AppSettings _settings;
     private readonly Dictionary<string, BubbleControl> _bubbles = new();
+
+    // The overlay is click-through (WS_EX_TRANSPARENT), so it receives no mouse events. Hover is
+    // detected by polling the cursor against each bubble's on-screen rectangle instead, which keeps
+    // the overlay from ever intercepting a click meant for the window underneath.
+    private readonly DispatcherTimer _hoverTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private readonly HashSet<string> _hovered = new();
+
+    public event Action<string, bool>? BubbleHoverChanged;
 
     public OverlayWindow(AppSettings settings)
     {
         InitializeComponent();
         _settings = settings;
+        _hoverTimer.Tick += (_, _) => PollHover();
+    }
+
+    private void PollHover()
+    {
+        if (!GetCursorPos(out var cursor))
+            return;
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        foreach (var (id, bubble) in _bubbles)
+        {
+            var topLeft = bubble.PointToScreen(new Point(0, 0));
+            var over = cursor.X >= topLeft.X && cursor.X < topLeft.X + bubble.ActualWidth * dpi.DpiScaleX &&
+                       cursor.Y >= topLeft.Y && cursor.Y < topLeft.Y + bubble.ActualHeight * dpi.DpiScaleY;
+
+            if (over && _hovered.Add(id))
+                BubbleHoverChanged?.Invoke(id, true);
+            else if (!over && _hovered.Remove(id))
+                BubbleHoverChanged?.Invoke(id, false);
+        }
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -80,6 +120,8 @@ public partial class OverlayWindow : Window
             BubbleStack.Children.Insert(0, bubble);
         else
             BubbleStack.Children.Add(bubble);
+
+        _hoverTimer.Start();
     }
 
     public void Remove(string id)
@@ -88,6 +130,9 @@ public partial class OverlayWindow : Window
             return;
 
         _bubbles.Remove(id);
+        _hovered.Remove(id);
+        if (_bubbles.Count == 0)
+            _hoverTimer.Stop();
         bubble.FadeOutAndRemove(_settings.AnimationEnabled, () => BubbleStack.Children.Remove(bubble));
     }
 }

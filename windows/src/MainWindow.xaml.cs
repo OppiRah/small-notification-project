@@ -39,6 +39,11 @@ public partial class MainWindow : Window
 
         _notificationManager.NotificationAdded += n => _overlay.Add(n);
         _notificationManager.NotificationRemoved += id => _overlay.Remove(id);
+        _overlay.BubbleHoverChanged += (id, hovered) =>
+        {
+            if (hovered) _notificationManager.Pause(id);
+            else _notificationManager.Resume(id);
+        };
         _overlay.Show();
 
         _receiver.ClientConnectionChanged += OnClientConnectionChanged;
